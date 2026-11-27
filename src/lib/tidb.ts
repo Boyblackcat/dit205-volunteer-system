@@ -464,7 +464,7 @@ export async function ensureTiDBAppStateTable(): Promise<{ ok: boolean; error?: 
   }
 }
 
-export async function loadAppStateFromTiDB(): Promise<any | null> {
+export async function getAppStateUpdatedAtFromTiDB(): Promise<string | null> {
   const pool = getTiDBPool();
   if (!pool) return null;
 
@@ -475,17 +475,46 @@ export async function loadAppStateFromTiDB(): Promise<any | null> {
     const cfg = getTiDBConfig();
     const dbName = cfg.database.replace(/[^a-zA-Z0-9_]/g, '') || 'test';
     const [rows] = await pool.query<mysql.RowDataPacket[]>(
-      `SELECT payload FROM \`${dbName}\`.volunteer_app_state WHERE state_key = 'main' LIMIT 1`
+      `SELECT updated_at FROM \`${dbName}\`.volunteer_app_state WHERE state_key = 'main' LIMIT 1`
     );
     if (!rows || rows.length === 0) return null;
-    return JSON.parse(String(rows[0].payload));
+    return String(rows[0].updated_at || '');
+  } catch (err) {
+    console.warn('[TiDB] Failed to check app state updated_at:', (err as Error).message);
+    return null;
+  }
+}
+
+export async function loadAppStateWithMetaFromTiDB(): Promise<{ payload: any; updatedAt: string } | null> {
+  const pool = getTiDBPool();
+  if (!pool) return null;
+
+  try {
+    const ready = await ensureTiDBAppStateTable();
+    if (!ready.ok) return null;
+
+    const cfg = getTiDBConfig();
+    const dbName = cfg.database.replace(/[^a-zA-Z0-9_]/g, '') || 'test';
+    const [rows] = await pool.query<mysql.RowDataPacket[]>(
+      `SELECT payload, updated_at FROM \`${dbName}\`.volunteer_app_state WHERE state_key = 'main' LIMIT 1`
+    );
+    if (!rows || rows.length === 0) return null;
+    return {
+      payload: JSON.parse(String(rows[0].payload)),
+      updatedAt: String(rows[0].updated_at || ''),
+    };
   } catch (err) {
     console.warn('[TiDB] Failed to load app state:', (err as Error).message);
     return null;
   }
 }
 
-export async function saveAppStateToTiDB(data: any): Promise<boolean> {
+export async function loadAppStateFromTiDB(): Promise<any | null> {
+  const res = await loadAppStateWithMetaFromTiDB();
+  return res ? res.payload : null;
+}
+
+export async function saveAppStateToTiDB(data: any, updatedAt?: string): Promise<boolean> {
   const pool = getTiDBPool();
   if (!pool) return false;
 
@@ -495,13 +524,14 @@ export async function saveAppStateToTiDB(data: any): Promise<boolean> {
 
     const cfg = getTiDBConfig();
     const dbName = cfg.database.replace(/[^a-zA-Z0-9_]/g, '') || 'test';
+    const ts = updatedAt || new Date().toISOString();
     await pool.query(
       `INSERT INTO \`${dbName}\`.volunteer_app_state (state_key, payload, updated_at)
        VALUES ('main', ?, ?)
        ON DUPLICATE KEY UPDATE
          payload = VALUES(payload),
          updated_at = VALUES(updated_at)`,
-      [JSON.stringify(data), new Date().toISOString()]
+      [JSON.stringify(data), ts]
     );
     return true;
   } catch (err) {

@@ -2,7 +2,11 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { storeDataUrlSync } from '@/lib/mediaStore';
-import { loadAppStateFromTiDB, saveAppStateToTiDB } from '@/lib/tidb';
+import {
+  getAppStateUpdatedAtFromTiDB,
+  loadAppStateWithMetaFromTiDB,
+  saveAppStateToTiDB,
+} from '@/lib/tidb';
 import {
   User,
   ScholarshipType,
@@ -37,7 +41,7 @@ const DB_FILE = path.join(DATA_DIR, 'db.json');
 
 let cachedDb: DatabaseSchema | null = null;
 let cachedMtimeMs = 0;
-let lastTiDBSyncMs = 0;
+let cachedUpdatedAt: string | null = null;
 let inflightTiDBLoad: Promise<DatabaseSchema> | null = null;
 
 const INITIAL_SCHOLARSHIPS: ScholarshipType[] = [
@@ -543,26 +547,32 @@ export function saveDatabase(data: DatabaseSchema): void {
 }
 
 /**
- * Hydrates in-memory DB from TiDB Cloud on Vercel Serverless cold starts (or refreshes stale cache).
+ * Hydrates in-memory DB from TiDB Cloud on Vercel Serverless cold starts and validates
+ * freshness via lightweight updated_at check so deletions/edits propagate immediately across all Lambda routes.
  * On localhost, returns immediately from fast local cache (< 0.5 ms).
  */
-export async function ensureDbReady(): Promise<DatabaseSchema> {
+export async function ensureDbReady(forceFresh = false): Promise<DatabaseSchema> {
   if (!IS_VERCEL) {
     return getDatabase();
   }
-  const now = Date.now();
-  if (cachedDb && now - lastTiDBSyncMs < 5000) {
-    return cachedDb;
+
+  if (!forceFresh && cachedDb && cachedUpdatedAt) {
+    const remoteUpdatedAt = await getAppStateUpdatedAtFromTiDB();
+    if (remoteUpdatedAt && remoteUpdatedAt === cachedUpdatedAt) {
+      return cachedDb;
+    }
   }
-  if (inflightTiDBLoad) {
+
+  if (!forceFresh && inflightTiDBLoad) {
     return inflightTiDBLoad;
   }
-  inflightTiDBLoad = (async () => {
+
+  const loadPromise = (async () => {
     try {
-      const remote = await loadAppStateFromTiDB();
-      if (remote && Array.isArray(remote.users)) {
-        cachedDb = remote as DatabaseSchema;
-        lastTiDBSyncMs = Date.now();
+      const remote = await loadAppStateWithMetaFromTiDB();
+      if (remote && remote.payload && Array.isArray(remote.payload.users)) {
+        cachedDb = remote.payload as DatabaseSchema;
+        cachedUpdatedAt = remote.updatedAt || new Date().toISOString();
         try {
           ensureDataDir();
           fs.writeFileSync(DB_FILE, JSON.stringify(cachedDb), 'utf-8');
@@ -573,14 +583,21 @@ export async function ensureDbReady(): Promise<DatabaseSchema> {
         return cachedDb;
       }
       const local = getDatabase();
-      lastTiDBSyncMs = Date.now();
-      await saveAppStateToTiDB(local);
+      const ts = new Date().toISOString();
+      await saveAppStateToTiDB(local, ts);
+      cachedUpdatedAt = ts;
       return local;
     } finally {
-      inflightTiDBLoad = null;
+      if (inflightTiDBLoad === loadPromise) {
+        inflightTiDBLoad = null;
+      }
     }
   })();
-  return inflightTiDBLoad;
+
+  if (!forceFresh) {
+    inflightTiDBLoad = loadPromise;
+  }
+  return loadPromise;
 }
 
 /**
@@ -590,8 +607,9 @@ export async function persistDatabase(data?: DatabaseSchema): Promise<void> {
   const target = data || cachedDb || getDatabase();
   saveDatabase(target);
   if (IS_VERCEL) {
-    await saveAppStateToTiDB(target);
-    lastTiDBSyncMs = Date.now();
+    const ts = `${new Date().toISOString()}-${Math.random().toString(36).slice(2, 6)}`;
+    await saveAppStateToTiDB(target, ts);
+    cachedUpdatedAt = ts;
   }
 }
 

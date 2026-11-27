@@ -3,6 +3,8 @@ import { getDatabase, saveDatabase, logAudit, ensureDbReady, flushDatabaseToTiDB
 import { getCurrentUser, checkRolePermission } from '@/lib/auth';
 import { Activity } from '@/types';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   const db = await ensureDbReady();
   const { searchParams } = new URL(request.url);

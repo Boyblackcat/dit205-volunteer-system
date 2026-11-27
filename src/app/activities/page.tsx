@@ -47,8 +47,10 @@ export default function ActivitiesPage() {
     reason: string;
   } | null>(null);
 
-  // Admin / Organizer inline Edit Modal
+  // Admin / Organizer inline Edit & Delete Modals
   const [editingAct, setEditingAct] = useState<Activity | null>(null);
+  const [activityToDelete, setActivityToDelete] = useState<Activity | null>(null);
+  const [deletingActivity, setDeletingActivity] = useState(false);
   const [editForm, setEditForm] = useState({
     title: '',
     description: '',
@@ -73,7 +75,7 @@ export default function ActivitiesPage() {
       if (category) params.set('category', category);
       if (filterYear) params.set('academicYear', filterYear);
       if (filterSemester) params.set('semester', filterSemester);
-      const res = await fetch(`/api/activities?${params.toString()}`);
+      const res = await fetch(`/api/activities?${params.toString()}`, { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
         const activeYr = data.settings?.academicYear || '2569';
@@ -218,21 +220,32 @@ export default function ActivitiesPage() {
     }
   };
 
-  const handleDeleteActivity = async (act: Activity) => {
-    if (!confirm(`ต้องการลบกิจกรรม "${act.title}" ใช่หรือไม่? (รายการลงทะเบียนของนักศึกษาในกิจกรรมนี้จะถูกลบออกด้วย)`))
-      return;
+  const handleDeleteActivity = (act: Activity) => {
+    setActivityToDelete(act);
+  };
+
+  const confirmDeleteActivity = async () => {
+    if (!activityToDelete) return;
+    const target = activityToDelete;
+    setDeletingActivity(true);
     setMessage(null);
     try {
-      const res = await fetch(`/api/activities/${act.id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/activities/${target.id}`, { method: 'DELETE' });
       const data = await res.json();
       if (res.ok) {
-        setMessage({ text: `ลบกิจกรรม "${act.title}" เรียบร้อยแล้ว`, type: 'success' });
+        setActivities((prev) => prev.filter((a) => a.id !== target.id));
+        setActivityToDelete(null);
+        setMessage({ text: `ลบกิจกรรม "${target.title}" เรียบร้อยแล้ว`, type: 'success' });
         fetchActivities();
       } else {
+        setActivityToDelete(null);
         setMessage({ text: data.error || 'ไม่สามารถลบกิจกรรมได้', type: 'error' });
       }
     } catch {
+      setActivityToDelete(null);
       setMessage({ text: 'เกิดข้อผิดพลาดในการเชื่อมต่อ', type: 'error' });
+    } finally {
+      setDeletingActivity(false);
     }
   };
 
@@ -788,6 +801,62 @@ export default function ActivitiesPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Activity Confirmation Modal */}
+      {activityToDelete && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4"
+          onClick={() => !deletingActivity && setActivityToDelete(null)}
+        >
+          <div
+            className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-rose-200 space-y-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center flex-shrink-0">
+                  <AlertCircle className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">ยืนยันการลบกิจกรรม</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">การลบกิจกรรมไม่สามารถย้อนกลับได้</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={deletingActivity}
+                onClick={() => setActivityToDelete(null)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold flex items-center justify-center"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 text-xs sm:text-sm text-rose-900 space-y-1">
+              <p className="font-bold break-words">กิจกรรม: {activityToDelete.title}</p>
+              <p className="text-rose-800">รายการลงทะเบียนและบันทึกชั่วโมงของนักศึกษาในกิจกรรมนี้จะถูกลบออกด้วย</p>
+            </div>
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                disabled={deletingActivity}
+                onClick={() => setActivityToDelete(null)}
+                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                disabled={deletingActivity}
+                onClick={confirmDeleteActivity}
+                className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-semibold shadow-sm transition flex items-center gap-1.5 disabled:opacity-50"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                {deletingActivity ? 'กำลังลบ...' : 'ยืนยันลบกิจกรรม'}
+              </button>
+            </div>
           </div>
         </div>
       )}

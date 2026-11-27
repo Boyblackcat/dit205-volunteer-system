@@ -5,14 +5,14 @@ import { useAuth } from '@/context/AuthContext';
 import { RoleGuard } from '@/components/RoleGuard';
 import { Activity } from '@/types';
 import {
-  ShieldCheck,
   CheckCircle2,
   XCircle,
   AlertCircle,
   Calendar,
   MapPin,
-  Clock,
   Users,
+  Trash2,
+  AlertTriangle,
 } from 'lucide-react';
 
 export default function ApproverActivitiesPage() {
@@ -20,11 +20,13 @@ export default function ApproverActivitiesPage() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [activityToDelete, setActivityToDelete] = useState<Activity | null>(null);
+  const [deletingActivity, setDeletingActivity] = useState(false);
   const [msg, setMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
   const fetchActivities = async () => {
     try {
-      const res = await fetch('/api/activities');
+      const res = await fetch('/api/activities', { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
         setActivities(data.activities);
@@ -61,10 +63,35 @@ export default function ApproverActivitiesPage() {
       } else {
         setMsg({ text: data.error || 'เกิดข้อผิดพลาด', type: 'error' });
       }
-    } catch (e) {
+    } catch {
       setMsg({ text: 'เกิดข้อผิดพลาดในการเชื่อมต่อ', type: 'error' });
     } finally {
       setActionLoading(null);
+    }
+  };
+
+  const confirmDeleteActivity = async () => {
+    if (!activityToDelete) return;
+    const target = activityToDelete;
+    setDeletingActivity(true);
+    setMsg(null);
+    try {
+      const res = await fetch(`/api/activities/${target.id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (res.ok) {
+        setActivities((prev) => prev.filter((a) => a.id !== target.id));
+        setActivityToDelete(null);
+        setMsg({ text: `ลบกิจกรรม "${target.title}" เรียบร้อยแล้ว`, type: 'success' });
+        fetchActivities();
+      } else {
+        setActivityToDelete(null);
+        setMsg({ text: data.error || 'ไม่สามารถลบกิจกรรมได้', type: 'error' });
+      }
+    } catch {
+      setActivityToDelete(null);
+      setMsg({ text: 'เกิดข้อผิดพลาดในการเชื่อมต่อ', type: 'error' });
+    } finally {
+      setDeletingActivity(false);
     }
   };
 
@@ -150,7 +177,7 @@ export default function ApproverActivitiesPage() {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-gray-100">
                   <div>
                     {act.status === 'approved' && (
                       <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
@@ -169,7 +196,7 @@ export default function ApproverActivitiesPage() {
                     )}
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     {act.status !== 'approved' && (
                       <button
                         onClick={() => handleApproveActivity(act.id, 'approved')}
@@ -183,9 +210,19 @@ export default function ApproverActivitiesPage() {
                       <button
                         onClick={() => handleApproveActivity(act.id, 'rejected')}
                         disabled={actionLoading === act.id}
-                        className="bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold px-3 py-1.5 rounded-xl border border-rose-200 transition flex items-center gap-1"
+                        className="bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-semibold px-3.5 py-1.5 rounded-xl border border-rose-200 transition flex items-center gap-1"
                       >
                         <XCircle className="w-3.5 h-3.5" /> ปฏิเสธ
+                      </button>
+                    )}
+                    {user?.role === 'admin' && (
+                      <button
+                        type="button"
+                        onClick={() => setActivityToDelete(act)}
+                        className="bg-white hover:bg-rose-50 text-rose-700 text-xs font-semibold px-3 py-1.5 rounded-xl border border-rose-200 transition flex items-center gap-1"
+                        title="ลบกิจกรรมนี้ถาวร"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" /> ลบ
                       </button>
                     )}
                   </div>
@@ -194,8 +231,63 @@ export default function ApproverActivitiesPage() {
             ))}
           </div>
         )}
+
+        {/* Delete Activity Confirmation Modal for Admin */}
+        {activityToDelete && (
+          <div
+            className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4"
+            onClick={() => !deletingActivity && setActivityToDelete(null)}
+          >
+            <div
+              className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-rose-200 space-y-5"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center flex-shrink-0">
+                    <AlertTriangle className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900">ยืนยันการลบกิจกรรม</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">การลบกิจกรรมไม่สามารถย้อนกลับได้</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  disabled={deletingActivity}
+                  onClick={() => setActivityToDelete(null)}
+                  className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold flex items-center justify-center disabled:opacity-40"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 text-xs sm:text-sm text-rose-900 space-y-1">
+                <p className="font-bold break-words">กิจกรรม: {activityToDelete.title}</p>
+                <p className="text-rose-800">รายการลงทะเบียนและบันทึกชั่วโมงในกิจกรรมนี้จะถูกลบออกทั้งหมด</p>
+              </div>
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  disabled={deletingActivity}
+                  onClick={() => setActivityToDelete(null)}
+                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="button"
+                  disabled={deletingActivity}
+                  onClick={confirmDeleteActivity}
+                  className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-semibold shadow-sm transition flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  {deletingActivity ? 'กำลังลบ...' : 'ยืนยันลบกิจกรรม'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </RoleGuard>
   );
 }
-

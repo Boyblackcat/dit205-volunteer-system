@@ -73,6 +73,10 @@ export default function OrganizerActivitiesPage() {
   const [participants, setParticipants] = useState<any[]>([]);
   const [partsLoading, setPartsLoading] = useState(false);
 
+  // Delete Activity Confirmation Modal
+  const [activityToDelete, setActivityToDelete] = useState<Activity | null>(null);
+  const [deletingActivity, setDeletingActivity] = useState(false);
+
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
   const fetchActivities = async () => {
@@ -80,7 +84,7 @@ export default function OrganizerActivitiesPage() {
       const params = new URLSearchParams();
       if (filterYear) params.set('academicYear', filterYear);
       if (filterSemester) params.set('semester', filterSemester);
-      const res = await fetch(`/api/activities?${params.toString()}`);
+      const res = await fetch(`/api/activities?${params.toString()}`, { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
         setActivities(data.activities || []);
@@ -288,27 +292,38 @@ export default function OrganizerActivitiesPage() {
     }
   };
 
-  const handleDeleteActivity = async (act: Activity) => {
-    if (!confirm(`ต้องการลบกิจกรรม "${act.title}" ใช่หรือไม่? (รายการลงทะเบียนของนักศึกษาในกิจกรรมนี้จะถูกลบออกด้วย)`))
-      return;
+  const handleDeleteActivity = (act: Activity) => {
+    setActivityToDelete(act);
+  };
+
+  const confirmDeleteActivity = async () => {
+    if (!activityToDelete) return;
+    const target = activityToDelete;
+    setDeletingActivity(true);
     setMessage(null);
 
     try {
-      const res = await fetch(`/api/activities/${act.id}`, {
+      const res = await fetch(`/api/activities/${target.id}`, {
         method: 'DELETE',
       });
       const data = await res.json();
       if (res.ok) {
+        setActivities((prev) => prev.filter((a) => a.id !== target.id));
+        setActivityToDelete(null);
         setMessage({
-          text: `ลบกิจกรรม "${act.title}" และล้างรายการค้างในบัญชีนักศึกษาเรียบร้อยแล้ว`,
+          text: `ลบกิจกรรม "${target.title}" และล้างรายการค้างในบัญชีนักศึกษาเรียบร้อยแล้ว`,
           type: 'success',
         });
         fetchActivities();
       } else {
+        setActivityToDelete(null);
         setMessage({ text: data.error || 'ไม่สามารถลบกิจกรรมได้', type: 'error' });
       }
     } catch {
+      setActivityToDelete(null);
       setMessage({ text: 'เกิดข้อผิดพลาดในการเชื่อมต่อ', type: 'error' });
+    } finally {
+      setDeletingActivity(false);
     }
   };
 
@@ -1490,6 +1505,81 @@ export default function OrganizerActivitiesPage() {
             </div>
           );
         })()}
+
+        {/* Delete Activity Confirmation Pop-up Modal */}
+        {activityToDelete && (
+          <div
+            className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4"
+            onClick={() => !deletingActivity && setActivityToDelete(null)}
+          >
+            <div
+              className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-rose-200 space-y-5"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center flex-shrink-0">
+                    <AlertTriangle className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-base sm:text-lg font-bold text-slate-900">
+                      ยืนยันการลบกิจกรรม
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      การลบกิจกรรมไม่สามารถย้อนกลับได้
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  disabled={deletingActivity}
+                  onClick={() => setActivityToDelete(null)}
+                  className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold flex items-center justify-center disabled:opacity-40"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="bg-rose-50 border border-rose-200 rounded-2xl p-4 space-y-1.5 text-xs sm:text-sm">
+                <p className="font-bold text-rose-900 break-words">
+                  กิจกรรม: {activityToDelete.title}
+                </p>
+                <p className="text-rose-800 leading-relaxed">
+                  รายการลงทะเบียน การเช็กชื่อ และบันทึกชั่วโมงของนักศึกษาในกิจกรรมนี้จะถูกลบออกทั้งหมด
+                </p>
+              </div>
+
+              <div className="flex flex-col-reverse sm:flex-row justify-end gap-2.5 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  disabled={deletingActivity}
+                  onClick={() => setActivityToDelete(null)}
+                  className="w-full sm:w-auto px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs sm:text-sm font-semibold transition disabled:opacity-50"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="button"
+                  disabled={deletingActivity}
+                  onClick={confirmDeleteActivity}
+                  className="w-full sm:w-auto px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs sm:text-sm font-semibold shadow-sm transition flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {deletingActivity ? (
+                    <>
+                      <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      กำลังลบกิจกรรม...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-4 h-4" />
+                      ยืนยันลบกิจกรรม
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </RoleGuard>
   );

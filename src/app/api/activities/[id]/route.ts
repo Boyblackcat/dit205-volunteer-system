@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase, saveDatabase, logAudit, ensureDbReady, flushDatabaseToTiDB, persistDatabase } from '@/lib/db';
 import { getCurrentUser, checkRolePermission } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -30,20 +32,19 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  await ensureDbReady();
+  const db = await ensureDbReady(true);
   const user = getCurrentUser(request);
   if (!user || !checkRolePermission(user, ['organizer', 'admin'])) {
     return NextResponse.json({ error: 'ไม่มีสิทธิ์ในการแก้ไขกิจกรรม' }, { status: 403 });
   }
 
   const { id } = params;
-  const db = await ensureDbReady();
   const index = db.activities.findIndex((a) => a.id === id);
   if (index === -1) {
     return NextResponse.json({ error: 'ไม่พบกิจกรรม' }, { status: 404 });
   }
 
-  // If organizer, ensure they own the activity
+  // If organizer (not admin), ensure they own the activity
   if (user.role === 'organizer' && db.activities[index].organizerId !== user.id) {
     return NextResponse.json({ error: 'ท่านสามารถแก้ไขได้เฉพาะกิจกรรมที่ท่านสร้างเท่านั้น' }, { status: 403 });
   }
@@ -71,8 +72,6 @@ export async function PUT(
       act.allowedScholarshipIds = body.allowedScholarshipIds;
     }
 
-    await persistDatabase(db);
-
     logAudit(
       user.id,
       user.name,
@@ -80,7 +79,7 @@ export async function PUT(
       'UPDATE_ACTIVITY',
       `แก้ไขกิจกรรม: "${act.title}"`
     );
-    await flushDatabaseToTiDB();
+    await persistDatabase(db);
 
     return NextResponse.json({
       success: true,
@@ -96,14 +95,13 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  await ensureDbReady();
+  const db = await ensureDbReady(true);
   const user = getCurrentUser(request);
   if (!user || !checkRolePermission(user, ['organizer', 'admin'])) {
     return NextResponse.json({ error: 'ไม่มีสิทธิ์ในการลบกิจกรรม' }, { status: 403 });
   }
 
   const { id } = params;
-  const db = await ensureDbReady();
   const index = db.activities.findIndex((a) => a.id === id);
   if (index === -1) {
     return NextResponse.json({ error: 'ไม่พบกิจกรรม' }, { status: 404 });
@@ -123,8 +121,6 @@ export async function DELETE(
   db.evidence = db.evidence.filter((e) => e.activityId !== id);
   db.hourRecords = db.hourRecords.filter((h) => h.activityId !== id);
 
-  await persistDatabase(db);
-
   logAudit(
     user.id,
     user.name,
@@ -132,7 +128,7 @@ export async function DELETE(
     'DELETE_ACTIVITY',
     `ลบกิจกรรม: "${act.title}"`
   );
-  await flushDatabaseToTiDB();
+  await persistDatabase(db);
 
   return NextResponse.json({ success: true, message: 'ลบกิจกรรมสำเร็จ' });
 }
