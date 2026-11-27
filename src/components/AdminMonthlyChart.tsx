@@ -26,6 +26,7 @@ interface AdminMonthlyChartProps {
   data: MonthlyStatItem[];
   yearlyData?: MonthlyStatItem[];
   chartMode?: 'monthly' | 'yearly';
+  activeTab?: 'hours' | 'activity';
   periodLabel: string;
 }
 
@@ -33,9 +34,9 @@ export const AdminMonthlyChart: React.FC<AdminMonthlyChartProps> = ({
   data,
   yearlyData,
   chartMode = 'monthly',
+  activeTab = 'hours',
   periodLabel,
 }) => {
-  const [activeTab, setActiveTab] = useState<'hours' | 'activity'>('hours');
   const [hoveredKey, setHoveredKey] = useState<string | null>(null);
 
   const isYearlyMode =
@@ -96,7 +97,7 @@ export const AdminMonthlyChart: React.FC<AdminMonthlyChartProps> = ({
   return (
     <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
       {/* Header */}
-      <div className="p-5 sm:p-6 border-b border-slate-100 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+      <div className="p-5 sm:p-6 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <span className="w-9 h-9 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center flex-shrink-0">
             <BarChart3 className="w-5 h-5" />
@@ -104,7 +105,13 @@ export const AdminMonthlyChart: React.FC<AdminMonthlyChartProps> = ({
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <h3 className="font-bold text-slate-900 text-base sm:text-lg">
-                {isYearlyMode ? 'กราฟเปรียบเทียบทุกปีการศึกษา (แยก 2 เทอม)' : 'กราฟสถิติรายเดือน (แยก 2 เทอม)'}
+                {isHoursTab
+                  ? isYearlyMode
+                    ? 'กราฟชั่วโมงทุนเปรียบเทียบทุกปีการศึกษา'
+                    : 'กราฟชั่วโมงทุนรายเดือน'
+                  : isYearlyMode
+                  ? 'กราฟกิจกรรมเปรียบเทียบทุกปีการศึกษา'
+                  : 'กราฟกิจกรรมรายเดือน'}
               </h3>
               <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
                 {periodLabel}
@@ -112,36 +119,10 @@ export const AdminMonthlyChart: React.FC<AdminMonthlyChartProps> = ({
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
               {isYearlyMode
-                ? 'เปรียบเทียบยอดเทอม 1 และเทอม 2 ครบทุกปีการศึกษา ทั้งชั่วโมงทุนและจำนวนกิจกรรม'
+                ? 'เปรียบเทียบยอดเทอม 1 และเทอม 2 ครบทุกปีการศึกษา'
                 : 'เปรียบเทียบยอดเทอม 1 และเทอม 2 แยกตามเดือน มกราคม – ธันวาคม'}
             </p>
           </div>
-        </div>
-
-        {/* Chart Metric Toggle */}
-        <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl self-start lg:self-auto">
-          <button
-            type="button"
-            onClick={() => setActiveTab('hours')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 ${
-              isHoursTab
-                ? 'bg-white text-emerald-700 shadow-2xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <BarChart3 className="w-3.5 h-3.5" /> ชั่วโมงทุน (เทอม 1 / เทอม 2)
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('activity')}
-            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 ${
-              !isHoursTab
-                ? 'bg-white text-blue-700 shadow-2xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <BarChart3 className="w-3.5 h-3.5" /> กิจกรรม (เทอม 1 / เทอม 2)
-          </button>
         </div>
       </div>
 

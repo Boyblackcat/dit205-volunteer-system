@@ -38,6 +38,7 @@ export default function HomePage() {
   const [regLoading, setRegLoading] = useState<string | null>(null);
   const [filterYear, setFilterYear] = useState<string | null>(null);
   const [filterSemester, setFilterSemester] = useState<string | null>(null);
+  const [adminChartTab, setAdminChartTab] = useState<'hours' | 'activity'>('hours');
   const [feedback, setFeedback] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [ineligiblePopup, setIneligiblePopup] = useState<{
     activityTitle: string;
@@ -68,7 +69,12 @@ export default function HomePage() {
     try {
       const params = new URLSearchParams();
       if (filterYear !== null) params.set('academicYear', filterYear);
-      if (filterSemester !== null) params.set('semester', filterSemester);
+      if (user?.role === 'admin') {
+        // Admin dashboard compares Term 1 & Term 2 together across the chosen year / all years
+        params.set('semester', '');
+      } else if (filterSemester !== null) {
+        params.set('semester', filterSemester);
+      }
       const res = await fetch(`/api/dashboard?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
@@ -578,19 +584,23 @@ export default function HomePage() {
           {/* Clean Unified Filter Bar for Staff / Admin */}
           <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-wrap items-center justify-between gap-3">
             <span className="text-xs sm:text-sm font-bold text-slate-700">
-              📅 กรองข้อมูลแดชบอร์ดตามปีการศึกษา / เทอม:
+              {user.role === 'admin'
+                ? '📅 กรองข้อมูลแดชบอร์ดและกราฟตามปีการศึกษา:'
+                : '📅 กรองข้อมูลแดชบอร์ดตามปีการศึกษา / เทอม:'}
             </span>
             <div className="flex flex-wrap items-center gap-2">
               <select
                 value={filterYear !== null ? filterYear : dashboardData.selectedYear ?? ''}
                 onChange={(e) => {
                   const nextYear = e.target.value;
-                  const currentSem =
-                    filterSemester !== null
-                      ? filterSemester
-                      : dashboardData.selectedSemester || '1';
                   setFilterYear(nextYear);
-                  setFilterSemester(currentSem);
+                  if (user.role !== 'admin') {
+                    const currentSem =
+                      filterSemester !== null
+                        ? filterSemester
+                        : dashboardData.selectedSemester || '1';
+                    setFilterSemester(currentSem);
+                  }
                 }}
                 className="px-3 py-1.5 rounded-xl border border-slate-300 text-xs font-semibold bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
               >
@@ -602,38 +612,65 @@ export default function HomePage() {
                 ))}
               </select>
 
-              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
-                {[
-                  { val: '1', label: 'เทอม 1' },
-                  { val: '2', label: 'เทอม 2' },
-                ].map((t) => {
-                  const currentSem =
-                    filterSemester !== null
-                      ? filterSemester
-                      : dashboardData.selectedSemester || '1';
-                  return (
-                    <button
-                      key={t.val}
-                      type="button"
-                      onClick={() => {
-                        const currentYr =
-                          filterYear !== null
-                            ? filterYear
-                            : dashboardData.selectedYear ?? '';
-                        setFilterYear(currentYr);
-                        setFilterSemester(t.val);
-                      }}
-                      className={`px-3 py-1 rounded-lg text-xs font-semibold transition ${
-                        currentSem === t.val
-                          ? 'bg-white text-emerald-700 shadow-2xs'
-                          : 'text-slate-600 hover:text-slate-900'
-                      }`}
-                    >
-                      {t.label}
-                    </button>
-                  );
-                })}
-              </div>
+              {user.role === 'admin' ? (
+                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+                  <button
+                    type="button"
+                    onClick={() => setAdminChartTab('hours')}
+                    className={`px-3 py-1 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 ${
+                      adminChartTab === 'hours'
+                        ? 'bg-white text-emerald-700 shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <BarChart3 className="w-3.5 h-3.5" /> ชั่วโมงทุน
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAdminChartTab('activity')}
+                    className={`px-3 py-1 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 ${
+                      adminChartTab === 'activity'
+                        ? 'bg-white text-blue-700 shadow-2xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <BarChart3 className="w-3.5 h-3.5" /> กิจกรรม
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+                  {[
+                    { val: '1', label: 'เทอม 1' },
+                    { val: '2', label: 'เทอม 2' },
+                  ].map((t) => {
+                    const currentSem =
+                      filterSemester !== null
+                        ? filterSemester
+                        : dashboardData.selectedSemester || '1';
+                    return (
+                      <button
+                        key={t.val}
+                        type="button"
+                        onClick={() => {
+                          const currentYr =
+                            filterYear !== null
+                              ? filterYear
+                              : dashboardData.selectedYear ?? '';
+                          setFilterYear(currentYr);
+                          setFilterSemester(t.val);
+                        }}
+                        className={`px-3 py-1 rounded-lg text-xs font-semibold transition ${
+                          currentSem === t.val
+                            ? 'bg-white text-emerald-700 shadow-2xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        {t.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
 
@@ -680,7 +717,8 @@ export default function HomePage() {
               data={dashboardData.monthlyStats}
               yearlyData={dashboardData.yearlyStats}
               chartMode={dashboardData.chartMode || 'monthly'}
-              periodLabel={dashboardData.periodLabel || 'ปีการศึกษา 2569 • เทอม 1'}
+              activeTab={adminChartTab}
+              periodLabel={dashboardData.periodLabel || 'ปีการศึกษา 2569 (เทียบเทอม 1 และ เทอม 2)'}
             />
           )}
 
