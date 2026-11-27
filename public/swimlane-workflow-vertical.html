@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Workflow แนวตั้ง - ระบบหาชั่วโมงทุน (DIT RSU)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Prompt', system-ui, -apple-system, sans-serif;
+      background: #ffffff;
+      color: #0f172a;
+    }
+    svg {
+      display: block;
+      width: 1200px;
+      height: 1640px;
+      background: #ffffff;
+    }
+  </style>
+</head>
+<body>
+  <svg id="vertical-svg" viewBox="0 0 1200 1640" xmlns="http://www.w3.org/2000/svg"></svg>
+
+  <script>
+    function renderTextLines(cx, cy, lines, fill = '#0f172a', fontSize = 11.5, bold = true) {
+      const lh = fontSize + 4.5;
+      const startY = cy - ((lines.length - 1) * lh) / 2 + 4;
+      return lines
+        .map(
+          (line, idx) =>
+            `<text x="${cx}" y="${startY + idx * lh}" text-anchor="middle" fill="${fill}" font-size="${
+              idx === 0 ? fontSize : fontSize - 1
+            }" font-weight="${idx === 0 && bold ? '700' : '500'}" font-family="Prompt, sans-serif">${line}</text>`
+        )
+        .join('');
+    }
+
+    function drawPill(cx, cy, w, h, lines) {
+      return `
+        <g filter="url(#shadow)">
+          <rect x="${cx - w / 2}" y="${cy - h / 2}" width="${w}" height="${h}" rx="${h / 2}" ry="${h / 2}"
+            fill="url(#gradBlue)" stroke="#3b82f6" stroke-width="1.3" />
+          ${renderTextLines(cx, cy, lines, '#0f172a', 11.2, true)}
+        </g>
+      `;
+    }
+
+    function drawRect(cx, cy, w, h, gradId, stroke, lines, textColor = '#0f172a') {
+      return `
+        <g filter="url(#shadow)">
+          <rect x="${cx - w / 2}" y="${cy - h / 2}" width="${w}" height="${h}" rx="7" ry="7"
+            fill="url(#${gradId})" stroke="${stroke}" stroke-width="1.3" />
+          ${renderTextLines(cx, cy, lines, textColor, 11, true)}
+        </g>
+      `;
+    }
+
+    function drawDiamond(cx, cy, rx, ry, lines) {
+      const pts = `${cx},${cy - ry} ${cx + rx},${cy} ${cx},${cy + ry} ${cx - rx},${cy}`;
+      return `
+        <g filter="url(#shadow)">
+          <polygon points="${pts}" fill="url(#gradGreen)" stroke="#4d7c0f" stroke-width="1.3" />
+          ${renderTextLines(cx, cy, lines, '#0f172a', 10.2, true)}
+        </g>
+      `;
+    }
+
+    function drawPath(d, color = '#2563eb') {
+      return `<path d="${d}" fill="none" stroke="${color}" stroke-width="1.8" stroke-linejoin="round" marker-end="url(#arrow)" />`;
+    }
+
+    function drawLabel(x, y, text, anchor = 'middle', color = '#1e293b') {
+      return `<text x="${x}" y="${y}" text-anchor="${anchor}" fill="${color}" font-size="10.5" font-weight="700" font-family="Prompt, sans-serif">${text}</text>`;
+    }
+
+    // 6 Vertical Swimlanes across x = 20..1180 (each ~193.3px wide)
+    const lanes = [
+      { name: 'นักศึกษาทุน', sub: '(Student)', x: 20, w: 193 },
+      { name: 'ผู้จัดกิจกรรม', sub: '(Organizer)', x: 213, w: 193 },
+      { name: 'ระบบอัตโนมัติ', sub: '(Next.js API / TiDB)', x: 406, w: 196 },
+      { name: 'เจ้าหน้าที่ดูแลทุน', sub: '(Officer)', x: 602, w: 193 },
+      { name: 'ผู้อนุมัติ', sub: '(Approver)', x: 795, w: 192 },
+      { name: 'ผู้ดูแลระบบ', sub: '(Admin)', x: 987, w: 193 },
+    ];
+    // Centers:
+    // L0 (Student): 116.5 -> 116
+    // L1 (Organizer): 309.5 -> 310
+    // L2 (System): 504
+    // L3 (Officer): 698.5 -> 698
+    // L4 (Approver): 891
+    // L5 (Admin): 1083.5 -> 1084
+
+    const laneHtml = lanes
+      .map(
+        (l) => `
+        <rect x="${l.x}" y="90" width="${l.w}" height="48" fill="#cfe0f5" stroke="#334155" stroke-width="1.2" />
+        <rect x="${l.x}" y="138" width="${l.w}" height="1464" fill="#ffffff" stroke="#334155" stroke-width="1.2" />
+        <text x="${l.x + l.w / 2}" y="111" text-anchor="middle" fill="#0f172a" font-size="12.5" font-weight="700" font-family="Prompt, sans-serif">${l.name}</text>
+        <text x="${l.x + l.w / 2}" y="128" text-anchor="middle" fill="#475569" font-size="10.5" font-weight="500" font-family="Prompt, sans-serif">${l.sub}</text>
+      `
+      )
+      .join('');
+
+    const svg = `
+      <defs>
+        <filter id="shadow" x="-10%" y="-10%" width="125%" height="130%">
+          <feDropShadow dx="1.5" dy="2.5" stdDeviation="2" flood-color="#0f172a" flood-opacity="0.16" />
+        </filter>
+        <marker id="arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+          <path d="M 0 1.2 L 9 5 L 0 8.8 z" fill="#2563eb" />
+        </marker>
+        <linearGradient id="gradBlue" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#dbeafe" />
+          <stop offset="55%" stop-color="#93c5fd" />
+          <stop offset="100%" stop-color="#60a5fa" />
+        </linearGradient>
+        <linearGradient id="gradGreen" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#d9f99d" />
+          <stop offset="55%" stop-color="#a3e635" />
+          <stop offset="100%" stop-color="#65a30d" />
+        </linearGradient>
+        <linearGradient id="gradTeal" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#99f6e4" />
+          <stop offset="55%" stop-color="#5eead4" />
+          <stop offset="100%" stop-color="#14b8a6" />
+        </linearGradient>
+        <linearGradient id="gradPink" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#fbcfe8" />
+          <stop offset="55%" stop-color="#f472b6" />
+          <stop offset="100%" stop-color="#db2777" />
+        </linearGradient>
+        <linearGradient id="gradPurple" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#e9d5ff" />
+          <stop offset="55%" stop-color="#c084fc" />
+          <stop offset="100%" stop-color="#9333ea" />
+        </linearGradient>
+        <linearGradient id="gradOrange" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#fed7aa" />
+          <stop offset="55%" stop-color="#fb923c" />
+          <stop offset="100%" stop-color="#ea580c" />
+        </linearGradient>
+      </defs>
+
+      <!-- White background -->
+      <rect x="0" y="0" width="1200" height="1640" fill="#ffffff" />
+
+      <!-- Title -->
+      <text x="600" y="34" text-anchor="middle" fill="#0f172a" font-size="22" font-weight="700" font-family="Prompt, sans-serif">
+        Workflow - ระบบหาชั่วโมงทุน (DIT RSU)
+      </text>
+
+      <!-- Header Bar -->
+      <rect x="20" y="50" width="1160" height="40" fill="#a8c5eb" stroke="#334155" stroke-width="1.4" />
+      <text x="600" y="75" text-anchor="middle" fill="#0f172a" font-size="16" font-weight="700" font-family="Prompt, sans-serif">
+        ระบบหาชั่วโมงทุน (Scholarship Volunteer Hours System)
+      </text>
+
+      <!-- 6 Vertical Swimlanes -->
+      ${laneHtml}
+
+      <!-- ==================== ARROWS ==================== -->
+
+      <!-- ROW 1 (y=205): Auth & Initial Setup -->
+      <!-- S1 (116, 205) -> SYS_AUTH (504, 205) -->
+      ${drawPath('M 196 205 L 434 205')}
+      <!-- SYS_AUTH (No) -> back up to S1 -->
+      ${drawPath('M 504 162 L 504 152 L 116 152 L 116 174')}
+      ${drawLabel(310, 166, 'ไม่ผ่าน (แจ้งรหัสผ่านผิด)', 'middle', '#dc2626')}
+      <!-- SYS_AUTH (Yes) -> SYS_DB1 (504, 345) -->
+      ${drawPath('M 504 248 L 504 312')}
+      ${drawLabel(518, 282, 'ผ่าน', 'start', '#15803d')}
+
+      <!-- OF1 (698, 205) -> SYS_DB1 (504, 345) -->
+      ${drawPath('M 698 237 L 698 332 L 584 332')}
+      <!-- AD1 (1084, 205) -> AD2 (1084, 345) -->
+      ${drawPath('M 1084 237 L 1084 313')}
+      <!-- AD2 (1084, 345) -> SYS_DB1 (504, 345) via y=358 -->
+      ${drawPath('M 1004 356 L 584 356')}
+
+      <!-- ROW 3 (y=495): Organizer creates activity -> System stores -> Approver reviews -->
+      <!-- ORG1 (310, 495) -> SYS_ACT (504, 495) -->
+      ${drawPath('M 392 495 L 424 495')}
+      <!-- SYS_DB1 -> SYS_ACT -->
+      ${drawPath('M 504 378 L 504 463')}
+      <!-- SYS_ACT (504, 495) -> APP1 (891, 495) -->
+      ${drawPath('M 584 495 L 820 495')}
+      <!-- APP1 (No) -> back to ORG1 -->
+      ${drawPath('M 891 452 L 891 428 L 310 428 L 310 462')}
+      ${drawLabel(600, 422, 'ไม่อนุมัติ (ส่งกลับให้ผู้จัดแก้ไข)', 'middle', '#dc2626')}
+
+      <!-- APP1 (Yes) -> S2 (116, 650) -->
+      ${drawPath('M 891 538 L 891 584 L 116 584 L 116 618')}
+      ${drawLabel(878, 562, 'อนุมัติเปิดรับสมัคร', 'end', '#15803d')}
+
+      <!-- ROW 4 (y=650): Student registers -> System checks eligibility, seats & dup -->
+      <!-- S2 (116, 650) -> SYS_FULL (504, 650) -->
+      ${drawPath('M 196 650 L 430 650')}
+      <!-- SYS_FULL (No) -> back to S2 -->
+      ${drawPath('M 504 696 L 504 716 L 116 716 L 116 682')}
+      ${drawLabel(310, 710, 'ไม่ผ่าน (ไม่ตรงเกณฑ์ทุน / เต็ม / สมัครซ้ำ)', 'middle', '#dc2626')}
+
+      <!-- SYS_FULL (Yes) -> S3 (116, 815) -->
+      ${drawPath('M 578 650 L 592 650 L 592 752 L 116 752 L 116 783')}
+      ${drawLabel(586, 642, 'ผ่าน', 'end', '#15803d')}
+      ${drawLabel(310, 746, 'ลงทะเบียนสำเร็จ', 'middle', '#15803d')}
+
+      <!-- ROW 5 (y=815): Organizer shows QR -> Student scans -> System verifies -->
+      <!-- ORG2 (310, 815) -> S3 (116, 815) -->
+      ${drawPath('M 228 815 L 198 815')}
+      <!-- S3 (116, 815) -> SYS_DUP (504, 955) -->
+      ${drawPath('M 116 847 L 116 955 L 430 955')}
+      <!-- SYS_DUP (No) -> back to S3 -->
+      ${drawPath('M 504 1001 L 504 1020 L 76 1020 L 76 847')}
+      ${drawLabel(295, 1014, 'ไม่ผ่าน (QR ผิด / เช็กชื่อซ้ำ)', 'middle', '#dc2626')}
+
+      <!-- SYS_DUP (Yes) -> SYS_DB2 (504, 1105) -->
+      ${drawPath('M 578 955 L 590 955 L 590 1105 L 584 1105')}
+      ${drawLabel(586, 944, 'ผ่าน', 'middle', '#15803d')}
+
+      <!-- ROW 7 (y=1105): Student uploads evidence -> System saves -> Officer verifies -->
+      <!-- S4 (116, 1105) <-> SYS_DB2 (504, 1105) -->
+      ${drawPath('M 424 1094 L 198 1094')}
+      ${drawLabel(310, 1088, 'เช็กชื่อสำเร็จ (พร้อมแนบหลักฐาน)', 'middle', '#2563eb')}
+      ${drawPath('M 196 1118 L 422 1118')}
+      ${drawLabel(310, 1134, 'ส่งรูปหลักฐาน', 'middle', '#2563eb')}
+
+      <!-- SYS_DB2 (504, 1105) -> OF2 (698, 1245) -->
+      ${drawPath('M 504 1137 L 504 1245 L 624 1245')}
+
+      <!-- ROW 8 (y=1245): Officer Verifies -> Confirm Popup ("ยืนยัน") OR Reject Popup (ระบุเหตุผล) -->
+      <!-- OF2 (No) -> OF_FIX (698, 1385) -->
+      ${drawPath('M 698 1290 L 698 1352')}
+      ${drawLabel(712, 1322, 'ตีกลับ', 'start', '#dc2626')}
+
+      <!-- OF_FIX (698, 1385) -> back to S4 (116, 1105) -->
+      ${drawPath('M 618 1385 L 116 1385 L 116 1138')}
+      ${drawLabel(360, 1378, 'แจ้งเหตุผลการตีกลับให้นักศึกษาแก้ไขรูปหลักฐาน', 'middle', '#dc2626')}
+
+      <!-- OF2 (Yes) -> APP2 (891, 1245) -->
+      ${drawPath('M 772 1245 L 817 1245')}
+      ${drawLabel(794, 1236, 'ผ่าน', 'middle', '#15803d')}
+
+      <!-- APP2 (No) -> OF_FIX (698, 1385) -->
+      ${drawPath('M 891 1290 L 891 1385 L 780 1385')}
+      ${drawLabel(878, 1322, 'ไม่อนุมัติ', 'end', '#dc2626')}
+
+      <!-- APP2 (Yes) -> SYS_END (504, 1525) & AD3 (1084, 1525) -->
+      ${drawPath('M 964 1245 L 976 1245 L 976 1525 L 586 1525')}
+      ${drawPath('M 976 1525 L 1002 1525')}
+      ${drawLabel(966, 1280, 'ยืนยันผ่าน', 'end', '#15803d')}
+
+      <!-- SYS_END (504, 1525) -> S5 (116, 1525) -->
+      ${drawPath('M 424 1525 L 198 1525')}
+
+      <!-- ==================== NODES ==================== -->
+
+      <!-- LANE 1: STUDENT (x = 116) -->
+      ${drawPill(116, 205, 158, 56, ['สมัครสมาชิก / เข้าสู่ระบบ', '(ทุนหลัก 1 ทุน + กยศ. 18 ชม.)'])}
+      ${drawPill(116, 650, 158, 56, ['ค้นหา & สมัครกิจกรรม', '(กรองปี / เทอม 1-2)'])}
+      ${drawPill(116, 815, 158, 56, ['สแกนเข้าร่วมกิจกรรม', '(QR Code / PIN / บัตร QR)'])}
+      ${drawPill(116, 1105, 158, 56, ['แนบรูปภาพหลักฐาน', '(ลบ/เปลี่ยนรูปด้วยปุ่ม ✕)'])}
+      ${drawPill(116, 1525, 158, 58, ['ดู Dashboard ชั่วโมงทุน', '(แยกสรุปแต่ละเทอม)'])}
+
+      <!-- LANE 2: ORGANIZER (x = 310) -->
+      ${drawRect(310, 495, 164, 62, 'gradTeal', '#0d9488', ['สร้าง / แก้ไขกิจกรรม', 'กำหนดปี/เทอม & ทุนที่รับ'])}
+      ${drawRect(310, 815, 164, 58, 'gradPurple', '#7e22ce', ['แสดง QR Code หน้างาน', '(หรือเช็กชื่อผู้สมัครเอง)'], '#ffffff')}
+
+      <!-- LANE 3: AUTOMATED SYSTEM (x = 504) -->
+      ${drawDiamond(504, 205, 70, 43, ['ตรวจสอบสิทธิ์ /', 'รหัสผ่านถูกต้อง?'])}
+      ${drawRect(504, 345, 160, 62, 'gradPink', '#be185d', ['บันทึก User / ทุน / เทอม', 'ลง TiDB Cloud & DB'])}
+      ${drawRect(504, 495, 160, 60, 'gradPink', '#be185d', ['บันทึกกิจกรรม & เงื่อนไข', 'ประเภททุนลงฐานข้อมูล'])}
+      ${drawDiamond(504, 650, 74, 46, ['ตรงเกณฑ์ทุน, ที่นั่งว่าง', '& ไม่สมัครซ้ำ?'])}
+      ${drawDiamond(504, 955, 74, 46, ['QR ถูกต้อง และ', 'ไม่เช็กชื่อซ้ำ?'])}
+      ${drawRect(504, 1105, 160, 62, 'gradPink', '#be185d', ['บันทึกการสแกนเข้าร่วม', '& หลักฐานลงฐานข้อมูล'])}
+      ${drawRect(504, 1525, 160, 64, 'gradPink', '#be185d', ['อัปเดตชั่วโมงทุนรายเทอม', '& บันทึก Audit Log'])}
+
+      <!-- LANE 4: OFFICER (x = 698) -->
+      ${drawRect(698, 205, 160, 60, 'gradTeal', '#0d9488', ['กำหนดประเภททุน', '(25/50/100%, กยศ. 18 ชม.)'])}
+      ${drawDiamond(698, 1245, 74, 45, ['ตรวจสอบหลักฐาน', 'ครบถ้วนถูกต้อง?'])}
+      ${drawRect(698, 1385, 160, 62, 'gradOrange', '#c2410c', ['Pop-up ส่งกลับแก้ไข', '(กรอกเหตุผลที่ตีกลับ)'])}
+
+      <!-- LANE 5: APPROVER (x = 891) -->
+      ${drawDiamond(891, 495, 71, 43, ['อนุมัติเปิดรับ', 'สมัครกิจกรรม?'])}
+      ${drawDiamond(891, 1245, 74, 45, ['Pop-up อนุมัติชั่วโมง', '(พิมพ์คำว่า "ยืนยัน")?'])}
+
+      <!-- LANE 6: ADMIN (x = 1084) -->
+      ${drawRect(1084, 205, 160, 60, 'gradOrange', '#c2410c', ['จัดการบัญชี & สิทธิ์ RBAC', '(ซิงก์ TiDB Cloud)'])}
+      ${drawRect(1084, 345, 160, 60, 'gradTeal', '#0d9488', ['ตั้งค่าปี / เทอม 1-2', '& แก้ไข/ลบกิจกรรม'])}
+      ${drawRect(1084, 1525, 160, 60, 'gradPurple', '#7e22ce', ['ตรวจสอบ Audit Logs', '& รายงานภาพรวม'], '#ffffff')}
+
+      <!-- Footer -->
+      <text x="1180" y="1624" text-anchor="end" fill="#64748b" font-size="11" font-family="Prompt, sans-serif">
+        โครงงานระบบหาชั่วโมงทุน • วิทยาลัยนวัตกรรมดิจิทัลเทคโนโลยี มหาวิทยาลัยรังสิต (DIT204 / DIT205)
+      </text>
+    `;
+
+    document.getElementById('vertical-svg').innerHTML = svg;
+  </script>
+</body>
+</html>
