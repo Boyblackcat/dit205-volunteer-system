@@ -7,6 +7,7 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  await ensureDbReady();
   const sessionUser = getCurrentUser(request);
   if (!sessionUser || (sessionUser.role !== 'officer' && sessionUser.role !== 'admin')) {
     return NextResponse.json(
@@ -54,7 +55,6 @@ export async function PUT(
       reqItem.reviewedAt = new Date().toISOString();
 
       await persistDatabase(db);
-      await flushDatabaseToTiDB();
       upsertUserToTiDBBackground(student);
 
       const newNames = validation.validScholarships.map((s) => s.name).join(' + ');
@@ -88,7 +88,6 @@ export async function PUT(
       reqItem.reviewedAt = new Date().toISOString();
 
       await persistDatabase(db);
-      await flushDatabaseToTiDB();
 
       logAudit(
         sessionUser.id,
@@ -117,6 +116,7 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  await ensureDbReady();
   const sessionUser = getCurrentUser(request);
   if (!sessionUser) {
     return NextResponse.json({ error: 'กรุณาเข้าสู่ระบบ' }, { status: 401 });
@@ -147,7 +147,6 @@ export async function DELETE(
 
   db.scholarshipRequests.splice(idx, 1);
   await persistDatabase(db);
-  await flushDatabaseToTiDB();
 
   return NextResponse.json({ success: true, message: 'ยกเลิกคำขอแก้ไขทุนเรียบร้อยแล้ว' });
 }

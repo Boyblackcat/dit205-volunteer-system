@@ -6,6 +6,7 @@ import { storeDataUrlAsync } from '@/lib/mediaStore';
 import { ScholarshipChangeRequest } from '@/types';
 
 export async function GET(request: NextRequest) {
+  await ensureDbReady();
   const sessionUser = getCurrentUser(request);
   if (!sessionUser) {
     return NextResponse.json({ error: 'กรุณาเข้าสู่ระบบ' }, { status: 401 });
@@ -81,6 +82,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  await ensureDbReady();
   const sessionUser = getCurrentUser(request);
   if (!sessionUser) {
     return NextResponse.json({ error: 'กรุณาเข้าสู่ระบบ' }, { status: 401 });
@@ -121,7 +123,6 @@ export async function POST(request: NextRequest) {
       targetUser.scholarshipTypeId = finalIds[0];
 
       await persistDatabase(db);
-      await flushDatabaseToTiDB();
       upsertUserToTiDBBackground(targetUser);
 
       const newNames = validation.validScholarships.map((s) => s.name).join(' + ');
@@ -206,7 +207,6 @@ export async function POST(request: NextRequest) {
 
     db.scholarshipRequests.unshift(newReq);
     await persistDatabase(db);
-    await flushDatabaseToTiDB();
 
     const reqNames = validation.validScholarships.map((s) => s.name).join(' + ');
     logAudit(

@@ -3,6 +3,7 @@ import { getDatabase, ensureDbReady } from '@/lib/db';
 import { getCurrentUser, checkRolePermission } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
+  await ensureDbReady();
   const user = getCurrentUser(request);
   // TC-13 check
   if (!user || !checkRolePermission(user, ['admin'])) {

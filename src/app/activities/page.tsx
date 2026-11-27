@@ -36,8 +36,8 @@ export default function ActivitiesPage() {
   const [myRegMap, setMyRegMap] = useState<Record<string, any>>({});
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
-  const [filterYear, setFilterYear] = useState('');
-  const [filterSemester, setFilterSemester] = useState('');
+  const [filterYear, setFilterYear] = useState<string | null>(null);
+  const [filterSemester, setFilterSemester] = useState<string | null>(null);
   const [availableYears, setAvailableYears] = useState<string[]>(['2568', '2569', '2570']);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -76,14 +76,28 @@ export default function ActivitiesPage() {
       const res = await fetch(`/api/activities?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
-        setActivities(data.activities);
+        const activeYr = data.settings?.academicYear || '2569';
+        const activeSem = data.settings?.semester || '1';
         if (data.settings) {
-          const years = new Set<string>(['2568', '2569', '2570']);
-          if (data.settings.academicYear) years.add(data.settings.academicYear);
-          if (Array.isArray(data.settings.academicYears)) {
-            data.settings.academicYears.forEach((y: string) => years.add(y));
-          }
+          const baseYears =
+            Array.isArray(data.settings.academicYears) && data.settings.academicYears.length > 0
+              ? data.settings.academicYears
+              : ['2568', '2569', '2570'];
+          const years = new Set<string>(baseYears);
+          if (activeYr) years.add(activeYr);
           setAvailableYears(Array.from(years).sort());
+        }
+        // Auto-lock student initial view to the currently active academic year & semester
+        if (filterYear === null || filterSemester === null) {
+          setFilterYear(activeYr);
+          setFilterSemester(activeSem);
+          const filteredInit = (data.activities || []).filter(
+            (a: Activity) =>
+              (a.academicYear || '2569') === activeYr && (a.semester || '1') === activeSem
+          );
+          setActivities(filteredInit);
+        } else {
+          setActivities(data.activities || []);
         }
       }
     } catch (e) {
@@ -309,11 +323,10 @@ export default function ActivitiesPage() {
           </div>
 
           <select
-            value={filterYear}
+            value={filterYear ?? '2569'}
             onChange={(e) => setFilterYear(e.target.value)}
             className="px-3.5 py-3 bg-white rounded-2xl border border-slate-200/90 shadow-2xs text-xs sm:text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
           >
-            <option value="">ทุกปีการศึกษา</option>
             {availableYears.map((y) => (
               <option key={y} value={y}>
                 ปีการศึกษา {y}
@@ -321,15 +334,25 @@ export default function ActivitiesPage() {
             ))}
           </select>
 
-          <select
-            value={filterSemester}
-            onChange={(e) => setFilterSemester(e.target.value)}
-            className="px-3.5 py-3 bg-white rounded-2xl border border-slate-200/90 shadow-2xs text-xs sm:text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-          >
-            <option value="">ทุกเทอม (1 &amp; 2)</option>
-            <option value="1">เทอม 1</option>
-            <option value="2">เทอม 2</option>
-          </select>
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-2xl border border-slate-200/70">
+            {[
+              { val: '1', label: 'เทอม 1' },
+              { val: '2', label: 'เทอม 2' },
+            ].map((t) => (
+              <button
+                key={t.val}
+                type="button"
+                onClick={() => setFilterSemester(t.val)}
+                className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition whitespace-nowrap ${
+                  (filterSemester ?? '1') === t.val
+                    ? 'bg-white text-emerald-700 shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">

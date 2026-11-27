@@ -3,6 +3,7 @@ import { getDatabase, ensureDbReady } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
+  await ensureDbReady();
   const user = getCurrentUser(request);
   if (!user) {
     return NextResponse.json({ error: 'กรุณาเข้าสู่ระบบ' }, { status: 401 });
@@ -218,7 +219,7 @@ export async function GET(request: NextRequest) {
     };
   });
 
-  // Build 12-month statistics synchronized with the exact active Academic Year / Semester filter
+  // Build 12-month statistics split by Term 1 vs Term 2 (for selected year, or all years combined)
   const THAI_MONTHS_SHORT = [
     'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
     'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.',
@@ -228,7 +229,13 @@ export async function GET(request: NextRequest) {
     'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม',
   ];
 
-  const filteredActivityMap = new Map(filteredActivities.map((a) => [a.id, a]));
+  // For charts, always include BOTH Term 1 & Term 2 of the selected academic year (so Term 1 vs Term 2 bars compare clearly)
+  const yearMatchedActivities = db.activities.filter((a) => {
+    if (!filterYear) return true;
+    return (a.academicYear || '2569') === filterYear;
+  });
+  const yearMatchedActMap = new Map(yearMatchedActivities.map((a) => [a.id, a]));
+  const yearMatchedHours = db.hourRecords.filter((h) => yearMatchedActMap.has(h.activityId));
 
   const extractMonth = (dateStr?: string): number | null => {
     if (!dateStr) return null;
@@ -244,90 +251,87 @@ export async function GET(request: NextRequest) {
     return null;
   };
 
+  const computeTermSplit = (
+    acts: typeof db.activities,
+    hrs: typeof db.hourRecords
+  ) => {
+    const t1Acts = acts.filter((a) => (a.semester || '1') === '1');
+    const t2Acts = acts.filter((a) => (a.semester || '1') === '2');
+    const t1Ids = new Set(t1Acts.map((a) => a.id));
+    const t2Ids = new Set(t2Acts.map((a) => a.id));
+
+    const t1ApprovedHours = hrs
+      .filter((h) => t1Ids.has(h.activityId) && h.status === 'approved')
+      .reduce((sum, h) => sum + h.hours, 0);
+    const t2ApprovedHours = hrs
+      .filter((h) => t2Ids.has(h.activityId) && h.status === 'approved')
+      .reduce((sum, h) => sum + h.hours, 0);
+
+    const t1PendingHours = hrs
+      .filter(
+        (h) =>
+          t1Ids.has(h.activityId) &&
+          (h.status === 'pending' || h.status === 'verified_by_officer')
+      )
+      .reduce((sum, h) => sum + h.hours, 0);
+    const t2PendingHours = hrs
+      .filter(
+        (h) =>
+          t2Ids.has(h.activityId) &&
+          (h.status === 'pending' || h.status === 'verified_by_officer')
+      )
+      .reduce((sum, h) => sum + h.hours, 0);
+
+    const t1RegistrationsCount = db.registrations.filter(
+      (r) => r.status !== 'cancelled' && t1Ids.has(r.activityId)
+    ).length;
+    const t2RegistrationsCount = db.registrations.filter(
+      (r) => r.status !== 'cancelled' && t2Ids.has(r.activityId)
+    ).length;
+
+    return {
+      term1ApprovedHours: t1ApprovedHours,
+      term2ApprovedHours: t2ApprovedHours,
+      term1PendingHours: t1PendingHours,
+      term2PendingHours: t2PendingHours,
+      term1ActivitiesCount: t1Acts.length,
+      term2ActivitiesCount: t2Acts.length,
+      term1RegistrationsCount: t1RegistrationsCount,
+      term2RegistrationsCount: t2RegistrationsCount,
+      approvedHours: t1ApprovedHours + t2ApprovedHours,
+      pendingHours: t1PendingHours + t2PendingHours,
+      activitiesCount: t1Acts.length + t2Acts.length,
+      registrationsCount: t1RegistrationsCount + t2RegistrationsCount,
+    };
+  };
+
   const monthlyStats = Array.from({ length: 12 }, (_, idx) => {
     const monthNum = idx + 1;
-
-    const actsInMonth = filteredActivities.filter((a) => {
-      const m = extractMonth(a.date || a.createdAt);
-      return m === monthNum;
-    });
-
-    const regsInMonth = db.registrations.filter((r) => {
-      if (r.status === 'cancelled') return false;
-      const act = filteredActivityMap.get(r.activityId);
-      if (!act) return false;
-      const m = extractMonth(act.date || r.registeredAt);
-      return m === monthNum;
-    });
-
-    const hoursInMonth = filteredHourRecords.filter((h) => {
-      const act = filteredActivityMap.get(h.activityId);
-      if (!act) return false;
-      const m = extractMonth(act.date || h.approvedAt || h.updatedAt);
-      return m === monthNum;
-    });
-
-    const approvedHours = hoursInMonth
-      .filter((h) => h.status === 'approved')
-      .reduce((sum, h) => sum + h.hours, 0);
-
-    const pendingHours = hoursInMonth
-      .filter((h) => h.status === 'pending' || h.status === 'verified_by_officer')
-      .reduce((sum, h) => sum + h.hours, 0);
-
-    const checkInsInMonth = db.attendances.filter((att) => {
-      const act = filteredActivityMap.get(att.activityId);
-      if (!act) return false;
-      const m = extractMonth(act.date || att.checkInTime);
-      return m === monthNum;
-    }).length;
+    const actsInMonth = yearMatchedActivities.filter(
+      (a) => extractMonth(a.date || a.createdAt) === monthNum
+    );
+    const monthActIds = new Set(actsInMonth.map((a) => a.id));
+    const hoursInMonth = yearMatchedHours.filter((h) => monthActIds.has(h.activityId));
 
     return {
       month: monthNum,
       label: THAI_MONTHS_SHORT[idx],
       fullLabel: THAI_MONTHS_FULL[idx],
-      approvedHours,
-      pendingHours,
-      activitiesCount: actsInMonth.length,
-      registrationsCount: regsInMonth.length,
-      checkInsCount: checkInsInMonth,
+      ...computeTermSplit(actsInMonth, hoursInMonth),
     };
   });
 
-  // Build per-year statistics for all available academic years (used when "ทุกปีการศึกษา" is selected)
+  // Build per-year statistics split by Term 1 vs Term 2 for ALL academic years
   const yearlyStats = availableYears.map((yr) => {
-    const actsInYear = db.activities.filter((a) => {
-      const aYear = a.academicYear || '2569';
-      const aSem = a.semester || '1';
-      if (aYear !== yr) return false;
-      if (filterSemester && aSem !== filterSemester) return false;
-      return true;
-    });
-    const yearActMap = new Map(actsInYear.map((a) => [a.id, a]));
-
-    const regsInYear = db.registrations.filter(
-      (r) => r.status !== 'cancelled' && yearActMap.has(r.activityId)
-    );
-
-    const hoursInYear = db.hourRecords.filter((h) => yearActMap.has(h.activityId));
-    const approvedHours = hoursInYear
-      .filter((h) => h.status === 'approved')
-      .reduce((sum, h) => sum + h.hours, 0);
-    const pendingHours = hoursInYear
-      .filter((h) => h.status === 'pending' || h.status === 'verified_by_officer')
-      .reduce((sum, h) => sum + h.hours, 0);
-
-    const checkInsInYear = db.attendances.filter((att) => yearActMap.has(att.activityId)).length;
+    const actsInYear = db.activities.filter((a) => (a.academicYear || '2569') === yr);
+    const yearActIds = new Set(actsInYear.map((a) => a.id));
+    const hoursInYear = db.hourRecords.filter((h) => yearActIds.has(h.activityId));
 
     return {
       year: yr,
       label: `ปี ${yr}`,
       fullLabel: `ปีการศึกษา ${yr}`,
-      approvedHours,
-      pendingHours,
-      activitiesCount: actsInYear.length,
-      registrationsCount: regsInYear.length,
-      checkInsCount: checkInsInYear,
+      ...computeTermSplit(actsInYear, hoursInYear),
     };
   });
 
@@ -338,10 +342,9 @@ export async function GET(request: NextRequest) {
 
   const chartMode: 'monthly' | 'yearly' = filterYear ? 'monthly' : 'yearly';
 
-  const periodLabel = [
-    filterYear ? `ปีการศึกษา ${filterYear}` : 'ทุกปีการศึกษา',
-    filterSemester ? `เทอม ${filterSemester}` : 'ทุกเทอม',
-  ].join(' • ');
+  const periodLabel = filterYear
+    ? `ปีการศึกษา ${filterYear} (เทียบเทอม 1 และ เทอม 2)`
+    : `ทุกปีการศึกษา (${availableYears.length} ปี • เทียบเทอม 1 และ เทอม 2)`;
 
   return NextResponse.json({
     role: user.role,

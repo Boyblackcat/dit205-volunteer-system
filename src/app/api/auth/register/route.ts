@@ -99,7 +99,6 @@ export async function POST(request: NextRequest) {
 
     db.users.push(newUser);
     await persistDatabase(db);
-    await flushDatabaseToTiDB();
     upsertUserToTiDBBackground(newUser);
 
     logAudit(

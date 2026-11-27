@@ -23,7 +23,6 @@ import {
 export default function CheckInPage() {
   const { user } = useAuth();
   const [registrations, setRegistrations] = useState<any[]>([]);
-  const [selectedActivityId, setSelectedActivityId] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
@@ -41,32 +40,28 @@ export default function CheckInPage() {
   const [result, setResult] = useState<{
     success: boolean;
     message: string;
+    activityTitle?: string;
     isDuplicate?: boolean;
     attendance?: any;
   } | null>(null);
 
-  const fetchRegistrations = async () => {
+  const fetchRegistrations = useCallback(async () => {
     try {
       const res = await fetch('/api/registrations');
       if (res.ok) {
         const data = await res.json();
-        const regs = data.registrations || [];
-        setRegistrations(regs);
-        if (regs.length > 0 && !selectedActivityId) {
-          const firstUnchecked = regs.find((r: any) => r.status !== 'checked_in');
-          setSelectedActivityId((firstUnchecked || regs[0]).activityId);
-        }
+        setRegistrations(data.registrations || []);
       }
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchRegistrations();
-  }, [user]);
+    if (user) fetchRegistrations();
+  }, [user, fetchRegistrations]);
 
   const stopCamera = useCallback(() => {
     if (rafRef.current) {
@@ -89,29 +84,28 @@ export default function CheckInPage() {
     };
   }, [stopCamera]);
 
+  // Direct auto-detect check-in from ANY scanned activity QR Code (no dropdown needed)
   const executeCheckIn = useCallback(
-    async (scannedPayload: string, overrideActivityId?: string) => {
-      let targetActId = overrideActivityId || selectedActivityId;
-      let secretToSend = scannedPayload;
+    async (scannedPayload: string) => {
+      let targetActId: string | undefined;
+      let secretToSend = scannedPayload.trim();
 
-      // Parse JSON QR Code from Organizer
-      if (scannedPayload.trim().startsWith('{')) {
+      if (secretToSend.startsWith('{')) {
         try {
-          const parsed = JSON.parse(scannedPayload);
-          if (parsed.activityId) {
-            targetActId = parsed.activityId;
-            setSelectedActivityId(parsed.activityId);
-          }
-          if (parsed.secret) {
-            secretToSend = parsed.secret;
-          }
+          const parsed = JSON.parse(secretToSend);
+          if (parsed.activityId) targetActId = parsed.activityId;
+          if (parsed.secret) secretToSend = parsed.secret;
         } catch {
           // use raw string
         }
       }
 
-      if (!targetActId) {
-        setResult({ success: false, message: 'กรุณาเลือกกิจกรรมที่ต้องการสแกนเข้าร่วม' });
+      if (!secretToSend && !targetActId) {
+        setResult({
+          success: false,
+          message: 'QR Code ไม่ถูกต้อง กรุณาสแกน QR Code จากผู้จัดกิจกรรมหน้างาน',
+        });
+        scanLockRef.current = false;
         return;
       }
 
@@ -134,6 +128,7 @@ export default function CheckInPage() {
           setResult({
             success: true,
             message: data.message || 'สแกนเข้าร่วมกิจกรรมสำเร็จเรียบร้อยแล้ว',
+            activityTitle: data.activityTitle,
             attendance: data.attendance,
           });
           fetchRegistrations();
@@ -141,6 +136,7 @@ export default function CheckInPage() {
           setResult({
             success: false,
             message: data.error || 'ไม่สามารถสแกนเข้าร่วมกิจกรรมได้',
+            activityTitle: data.activityTitle,
             isDuplicate: data.alreadyCheckedIn,
           });
         }
@@ -151,7 +147,7 @@ export default function CheckInPage() {
         scanLockRef.current = false;
       }
     },
-    [selectedActivityId]
+    [fetchRegistrations]
   );
 
   const scanFrame = useCallback(() => {
@@ -192,7 +188,7 @@ export default function CheckInPage() {
 
     if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
       setCameraError(
-        'เบราว์เซอร์นี้ไม่รองรับการเปิดกล้อง หรือไม่ได้เข้าผ่าน HTTPS/localhost กรุณาลองใช้ Chrome/Safari หรืออัปโหลดรูปภาพ QR Code แทน'
+        'เบราว์เซอร์นี้ไม่รองรับการเปิดกล้อง กรุณาใช้ Chrome/Safari ผ่าน HTTPS หรืออัปโหลดรูปภาพ QR Code แทน'
       );
       return;
     }
@@ -207,7 +203,6 @@ export default function CheckInPage() {
           audio: false,
         });
       } catch {
-        // Fallback to any available webcam (e.g. PC without rear camera)
         stream = await navigator.mediaDevices.getUserMedia({
           video: true,
           audio: false,
@@ -217,24 +212,21 @@ export default function CheckInPage() {
       streamRef.current = stream;
       setCameraActive(true);
 
-      // Attach stream after render
       setTimeout(async () => {
         if (videoRef.current && streamRef.current) {
           videoRef.current.srcObject = streamRef.current;
           try {
             await videoRef.current.play();
             rafRef.current = requestAnimationFrame(scanFrame);
-          } catch (playErr) {
-            console.error('Video play error:', playErr);
+          } catch {
             setCameraError('ไม่สามารถเริ่มภาพจากกล้องได้ กรุณากดเปิดกล้องอีกครั้ง');
             stopCamera();
           }
         }
       }, 100);
     } catch (err: any) {
-      console.error('Camera error:', err);
       if (err?.name === 'NotAllowedError' || err?.name === 'PermissionDeniedError') {
-        setCameraError('ไม่ได้รับอนุญาตให้ใช้กล้อง กรุณากดอนุญาตสิทธิ์กล้องในแถบที่อยู่ของเบราว์เซอร์แล้วลองใหม่');
+        setCameraError('ไม่ได้รับอนุญาตให้ใช้กล้อง กรุณากดอนุญาตสิทธิ์กล้องในแถบที่อยู่แล้วลองใหม่');
       } else if (err?.name === 'NotFoundError' || err?.name === 'DevicesNotFoundError') {
         setCameraError('ไม่พบอุปกรณ์กล้องบนเครื่องนี้ คุณสามารถใช้ปุ่ม "อัปโหลดรูปภาพ QR Code" ด้านล่างแทนได้');
       } else {
@@ -287,22 +279,14 @@ export default function CheckInPage() {
     e.target.value = '';
   };
 
-  const handleActivitySelect = (actId: string) => {
-    setSelectedActivityId(actId);
-    setResult(null);
-    setCameraError(null);
-  };
-
-  const selectedRegistration = registrations.find(
-    (r) => r.activityId === selectedActivityId
+  const pendingCheckInRegs = registrations.filter(
+    (r) => r.status !== 'checked_in' && !r.attendance && r.hourRecord?.status !== 'approved'
   );
-  const isApproved = selectedRegistration?.hourRecord?.status === 'approved';
-  const isAlreadyCheckedIn = selectedRegistration?.status === 'checked_in' || Boolean(selectedRegistration?.attendance);
 
   return (
     <RoleGuard allowedRoles={['student', 'admin']}>
       <div className="max-w-2xl mx-auto space-y-5 sm:space-y-6">
-        {/* Hidden canvas for QR decoding */}
+        {/* Hidden canvas & file input for QR decoding */}
         <canvas ref={canvasRef} className="hidden" />
         <input
           ref={fileInputRef}
@@ -321,7 +305,7 @@ export default function CheckInPage() {
             สแกนเข้าร่วมกิจกรรม
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1.5">
-            เปิดกล้องสแกน QR Code จากผู้จัดกิจกรรมหน้างาน หรืออัปโหลดภาพ QR Code เพื่อบันทึกเวลาเข้าร่วมกิจกรรม
+            ส่องกล้องสแกน QR Code ของกิจกรรมไหนก็ได้ที่ลงทะเบียนไว้ ระบบจะระบุกิจกรรมและเช็กชื่อให้อัตโนมัติทันที
           </p>
         </div>
 
@@ -379,196 +363,145 @@ export default function CheckInPage() {
           </div>
         )}
 
-        {/* Main Scanner Card */}
-        <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
-          {/* Activity Picker Header */}
-          <div className="p-5 sm:p-6 bg-slate-900 text-white space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div className="min-w-0">
-                <span className="text-emerald-400 text-[11px] font-bold uppercase tracking-wider block mb-1">
-                  กิจกรรมที่ลงทะเบียนไว้
-                </span>
-                <h2 className="text-base sm:text-lg font-bold leading-snug">
-                  {selectedRegistration?.activity?.title || 'ยังไม่มีกิจกรรมที่สมัคร'}
-                </h2>
-              </div>
-              {isApproved ? (
-                <span className="bg-emerald-500 text-white text-xs font-bold px-3 py-1 rounded-full self-start sm:self-auto flex-shrink-0">
-                  ✓ เข้าร่วมไปแล้ว (อนุมัติชั่วโมงแล้ว)
-                </span>
-              ) : isAlreadyCheckedIn ? (
-                <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-xs font-bold px-3 py-1 rounded-full self-start sm:self-auto flex-shrink-0">
-                  ✓ สแกนเข้าร่วมแล้ว
-                </span>
-              ) : null}
+        {/* Direct QR Scanner Card (No Dropdown!) */}
+        <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs p-6 sm:p-8">
+          <div className="space-y-5 text-center max-w-sm mx-auto">
+            {/* Real Camera Viewfinder */}
+            <div className="relative w-64 h-64 sm:w-72 sm:h-72 mx-auto bg-slate-950 rounded-3xl border-4 border-emerald-500/80 flex flex-col items-center justify-center overflow-hidden shadow-inner">
+              {cameraActive ? (
+                <>
+                  <video
+                    ref={videoRef}
+                    playsInline
+                    muted
+                    autoPlay
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute inset-6 border-2 border-emerald-400/90 rounded-2xl pointer-events-none">
+                    <div className="absolute inset-x-0 top-1/2 h-0.5 bg-emerald-400 shadow-[0_0_12px_#22c55e] animate-pulse" />
+                  </div>
+                  <span className="absolute bottom-2.5 left-1/2 -translate-x-1/2 bg-slate-900/80 text-emerald-300 text-[11px] font-semibold px-3 py-1 rounded-full whitespace-nowrap">
+                    กำลังสแกน QR Code...
+                  </span>
+                </>
+              ) : (
+                <>
+                  <QrCode className="w-16 h-16 sm:w-20 sm:h-20 text-emerald-500/60 mb-2.5" />
+                  <p className="text-xs text-emerald-300 font-semibold px-5 leading-relaxed">
+                    กดปุ่ม &ldquo;เปิดกล้องสแกน QR Code&rdquo; แล้วส่องไปที่ QR ของกิจกรรมที่เข้าร่วม
+                  </p>
+                </>
+              )}
             </div>
 
-            {selectedRegistration?.activity && (
-              <div className="flex flex-wrap items-center gap-3 text-xs text-slate-300">
-                <span className="flex items-center gap-1">
-                  <Calendar className="w-3.5 h-3.5 text-emerald-400" />
-                  {selectedRegistration.activity.date}
-                </span>
-                <span className="flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5 text-emerald-400" />
-                  +{selectedRegistration.activity.hours} ชม.
-                </span>
-                <span className="flex items-center gap-1">
-                  <MapPin className="w-3.5 h-3.5 text-rose-400" />
-                  {selectedRegistration.activity.location}
-                </span>
-              </div>
-            )}
-
-            {registrations.length > 0 && (
-              <div>
-                <select
-                  value={selectedActivityId}
-                  onChange={(e) => handleActivitySelect(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-700 bg-slate-800 text-white text-xs sm:text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+            <div className="space-y-2.5">
+              {!cameraActive ? (
+                <button
+                  type="button"
+                  onClick={() => startCamera()}
+                  disabled={submitting}
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-bold py-3.5 px-5 rounded-2xl shadow-md transition text-sm flex items-center justify-center gap-2 disabled:opacity-50"
                 >
-                  {registrations.map((reg) => {
-                    const regApproved = reg.hourRecord?.status === 'approved';
-                    const regChecked = reg.status === 'checked_in' || Boolean(reg.attendance);
-                    return (
-                      <option key={reg.activityId} value={reg.activityId}>
-                        {reg.activity?.title} (+{reg.activity?.hours} ชม.) —{' '}
-                        {regApproved
-                          ? '✓ เข้าร่วมไปแล้ว (อนุมัติแล้ว)'
-                          : regChecked
-                          ? '✓ สแกนเข้าร่วมแล้ว'
-                          : 'รอสแกนเข้าร่วม'}
-                      </option>
-                    );
-                  })}
-                </select>
-              </div>
-            )}
+                  <Camera className="w-5 h-5" />
+                  {submitting ? 'กำลังบันทึกการเข้าร่วม...' : 'เปิดกล้องสแกน QR Code'}
+                </button>
+              ) : (
+                <div className="grid grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={handleSwitchCamera}
+                    className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold py-3 px-4 rounded-2xl transition text-xs sm:text-sm flex items-center justify-center gap-1.5"
+                  >
+                    <SwitchCamera className="w-4 h-4" /> สลับกล้อง
+                  </button>
+                  <button
+                    type="button"
+                    onClick={stopCamera}
+                    className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-semibold py-3 px-4 rounded-2xl transition text-xs sm:text-sm flex items-center justify-center gap-1.5"
+                  >
+                    <CameraOff className="w-4 h-4" /> ปิดกล้อง
+                  </button>
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={submitting}
+                className="w-full bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 font-semibold py-3 px-4 rounded-2xl transition text-xs sm:text-sm flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                <ImagePlus className="w-4 h-4 text-emerald-600" />
+                อัปโหลดรูปภาพ QR Code จากเครื่อง
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Read-only overview of registered activities waiting for scan */}
+        <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs p-5 sm:p-6 space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-bold text-slate-900">
+              กิจกรรมที่รอสแกนเข้าร่วม ({pendingCheckInRegs.length})
+            </h2>
+            <Link
+              href="/my-hours"
+              className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 flex items-center gap-1"
+            >
+              ดูทั้งหมด <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
           </div>
 
-          {/* Scanner Body */}
-          <div className="p-5 sm:p-8">
-            {loading ? (
-              <div className="text-center py-10">
-                <div className="w-7 h-7 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-2.5"></div>
-                <p className="text-xs text-slate-500">กำลังโหลดข้อมูลกิจกรรม...</p>
-              </div>
-            ) : registrations.length === 0 ? (
-              <div className="text-center py-8 space-y-3">
-                <QrCode className="w-12 h-12 text-slate-300 mx-auto" />
-                <p className="text-sm font-semibold text-slate-700">
-                  คุณยังไม่ได้สมัครกิจกรรมใด
-                </p>
-                <p className="text-xs text-slate-500">
-                  กรุณาสมัครกิจกรรมก่อนจึงจะสามารถสแกนเข้าร่วมกิจกรรมได้
-                </p>
+          {loading ? (
+            <div className="text-center py-6 text-xs text-slate-400">กำลังโหลดรายการ...</div>
+          ) : pendingCheckInRegs.length === 0 ? (
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/70 text-center space-y-2">
+              <p className="text-xs text-slate-500">
+                {registrations.length === 0
+                  ? 'คุณยังไม่ได้สมัครกิจกรรมใด กรุณาสมัครกิจกรรมก่อนสแกนเข้าร่วม'
+                  : 'คุณสแกนเข้าร่วมครบทุกกิจกรรมที่ลงทะเบียนไว้แล้ว'}
+              </p>
+              {registrations.length === 0 && (
                 <Link
                   href="/activities"
-                  className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition"
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 hover:underline"
                 >
-                  ไปหน้าสมัครกิจกรรม <ArrowRight className="w-4 h-4" />
+                  ไปหน้าสมัครกิจกรรม <ArrowRight className="w-3.5 h-3.5" />
                 </Link>
-              </div>
-            ) : (
-              <div className="space-y-5 text-center max-w-sm mx-auto">
-                {/* Real Camera Viewfinder */}
-                <div className="relative w-64 h-64 sm:w-72 sm:h-72 mx-auto bg-slate-950 rounded-3xl border-4 border-emerald-500/80 flex flex-col items-center justify-center overflow-hidden shadow-inner">
-                  {cameraActive ? (
-                    <>
-                      <video
-                        ref={videoRef}
-                        playsInline
-                        muted
-                        autoPlay
-                        className="w-full h-full object-cover"
-                      />
-                      {/* Scanning Reticle Overlay */}
-                      <div className="absolute inset-6 border-2 border-emerald-400/90 rounded-2xl pointer-events-none">
-                        <div className="absolute inset-x-0 top-1/2 h-0.5 bg-emerald-400 shadow-[0_0_12px_#22c55e] animate-pulse" />
-                      </div>
-                      <span className="absolute bottom-2.5 left-1/2 -translate-x-1/2 bg-slate-900/80 text-emerald-300 text-[11px] font-semibold px-3 py-1 rounded-full whitespace-nowrap">
-                        กำลังสแกน QR Code...
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <QrCode className="w-16 h-16 sm:w-20 sm:h-20 text-emerald-500/60 mb-2.5" />
-                      <p className="text-xs text-emerald-300 font-semibold px-5 leading-relaxed">
-                        {isApproved
-                          ? 'เข้าร่วมและได้รับการอนุมัติชั่วโมงแล้ว'
-                          : isAlreadyCheckedIn
-                          ? 'บันทึกการสแกนเข้าร่วมเรียบร้อยแล้ว'
-                          : 'กดปุ่ม "เปิดกล้องสแกน QR Code" เพื่อสแกนกล้องจริง'}
-                      </p>
-                    </>
-                  )}
-                </div>
-
-                {isApproved ? (
-                  <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs sm:text-sm font-bold">
-                    ✓ คุณเข้าร่วมกิจกรรมนี้และได้รับอนุมัติชั่วโมงเรียบร้อยแล้ว
-                  </div>
-                ) : isAlreadyCheckedIn ? (
-                  <div className="space-y-3">
-                    <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs sm:text-sm font-semibold">
-                      ✓ คุณได้สแกนเข้าร่วมกิจกรรมนี้เรียบร้อยแล้ว
-                    </div>
-                    <Link
-                      href="/my-hours"
-                      className="w-full bg-amber-500 hover:bg-amber-600 text-white font-semibold py-3 px-4 rounded-2xl shadow-xs transition text-sm flex items-center justify-center gap-2"
-                    >
-                      ไปแนบรูปหลักฐานรับชั่วโมง <ArrowRight className="w-4 h-4" />
-                    </Link>
-                  </div>
-                ) : (
-                  <div className="space-y-2.5">
-                    {!cameraActive ? (
-                      <button
-                        type="button"
-                        onClick={() => startCamera()}
-                        disabled={submitting}
-                        className="w-full bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-bold py-3.5 px-5 rounded-2xl shadow-md transition text-sm flex items-center justify-center gap-2 disabled:opacity-50"
-                      >
-                        <Camera className="w-5 h-5" />
-                        {submitting ? 'กำลังบันทึกการเข้าร่วม...' : 'เปิดกล้องสแกน QR Code'}
-                      </button>
-                    ) : (
-                      <div className="grid grid-cols-2 gap-2.5">
-                        <button
-                          type="button"
-                          onClick={handleSwitchCamera}
-                          className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold py-3 px-4 rounded-2xl transition text-xs sm:text-sm flex items-center justify-center gap-1.5"
-                        >
-                          <SwitchCamera className="w-4 h-4" /> สลับกล้อง
-                        </button>
-                        <button
-                          type="button"
-                          onClick={stopCamera}
-                          className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-semibold py-3 px-4 rounded-2xl transition text-xs sm:text-sm flex items-center justify-center gap-1.5"
-                        >
-                          <CameraOff className="w-4 h-4" /> ปิดกล้อง
-                        </button>
-                      </div>
-                    )}
-
-                    <button
-                      type="button"
-                      onClick={() => fileInputRef.current?.click()}
-                      disabled={submitting}
-                      className="w-full bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 font-semibold py-3 px-4 rounded-2xl transition text-xs sm:text-sm flex items-center justify-center gap-2 disabled:opacity-50"
-                    >
-                      <ImagePlus className="w-4 h-4 text-emerald-600" />
-                      อัปโหลดรูปภาพ QR Code จากเครื่อง
-                    </button>
-
-                    <p className="text-[11px] text-slate-400 leading-relaxed pt-1">
-                      ส่องกล้องไปที่ QR Code ที่ผู้จัดกิจกรรมแสดงไว้ ระบบจะอ่านรหัสและบันทึกการเข้าร่วมให้อัตโนมัติทันที
+              )}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {pendingCheckInRegs.map((reg) => (
+                <div
+                  key={reg.id}
+                  className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/70 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+                >
+                  <div className="min-w-0">
+                    <p className="font-bold text-xs sm:text-sm text-slate-900 truncate">
+                      {reg.activity?.title}
                     </p>
+                    <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-500 mt-1">
+                      <span className="flex items-center gap-1">
+                        <Calendar className="w-3 h-3 text-emerald-600" />
+                        {reg.activity?.date}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Clock className="w-3 h-3 text-amber-600" />
+                        +{reg.activity?.hours} ชม.
+                      </span>
+                      <span className="flex items-center gap-1 truncate">
+                        <MapPin className="w-3 h-3 text-rose-500" />
+                        {reg.activity?.location}
+                      </span>
+                    </div>
                   </div>
-                )}
-              </div>
-            )}
-          </div>
+                  <span className="self-start sm:self-auto px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 text-[11px] font-bold whitespace-nowrap">
+                    รอสแกน QR
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </RoleGuard>

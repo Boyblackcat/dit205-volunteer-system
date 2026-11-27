@@ -4,6 +4,7 @@ import { getCurrentUser } from '@/lib/auth';
 import { Attendance, HourRecord } from '@/types';
 
 export async function POST(request: NextRequest) {
+  const db = await ensureDbReady();
   const user = getCurrentUser(request);
   if (!user) {
     return NextResponse.json({ error: 'กรุณาเข้าสู่ระบบก่อนทำการเช็กชื่อ' }, { status: 401 });
@@ -26,23 +27,35 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (!activityId) {
-      return NextResponse.json({ error: 'กรุณาระบุรหัสกิจกรรม หรือสแกน QR Code กิจกรรม' }, { status: 400 });
+    // Auto-resolve activity directly from scanned QR secret or activityId (no dropdown needed!)
+    const trimmedSecret = typeof qrSecret === 'string' ? qrSecret.trim() : '';
+    let activity = activityId
+      ? db.activities.find((a) => a.id === activityId)
+      : undefined;
+
+    if (!activity && trimmedSecret) {
+      activity = db.activities.find(
+        (a) => a.qrCodeSecret === trimmedSecret || a.id === trimmedSecret
+      );
+      if (activity) {
+        activityId = activity.id;
+      }
     }
 
-    const db = await ensureDbReady();
-    const activity = db.activities.find((a) => a.id === activityId);
-    if (!activity) {
-      return NextResponse.json({ error: 'ไม่พบกิจกรรมที่ระบุ' }, { status: 404 });
+    if (!activityId || !activity) {
+      return NextResponse.json(
+        { error: 'ไม่พบกิจกรรมที่ตรงกับ QR Code นี้ กรุณาสแกน QR Code จากผู้จัดกิจกรรมหน้างาน' },
+        { status: 404 }
+      );
     }
 
     const isStaff = user.role === 'organizer' || user.role === 'admin' || user.role === 'officer';
 
     // Verify QR secret if student self-checks in
-    if (!isStaff || (!byOrganizer && qrSecret)) {
-      if (qrSecret && qrSecret.trim() !== activity.qrCodeSecret && qrSecret.trim() !== activity.id) {
+    if (!isStaff || (!byOrganizer && trimmedSecret)) {
+      if (!trimmedSecret || (trimmedSecret !== activity.qrCodeSecret && trimmedSecret !== activity.id)) {
         return NextResponse.json(
-          { error: 'รหัส QR Code หรือ PIN กิจกรรมไม่ถูกต้อง' },
+          { error: 'รหัส QR Code กิจกรรมไม่ถูกต้อง' },
           { status: 400 }
         );
       }
@@ -57,12 +70,12 @@ export async function POST(request: NextRequest) {
     );
     if (!registration) {
       return NextResponse.json(
-        { error: 'นักศึกษายังไม่ได้ลงทะเบียนเข้าร่วมกิจกรรมนี้ กรุณาสมัครกิจกรรมก่อนเช็กชื่อ' },
+        { error: `คุณยังไม่ได้ลงทะเบียนกิจกรรม "${activity.title}" กรุณาสมัครกิจกรรมก่อนเช็กชื่อ` },
         { status: 400 }
       );
     }
 
-    // TC-08: Check duplicate check-in
+    // Check duplicate check-in
     const existingAttendance = db.attendances.find(
       (att) => att.activityId === activityId && att.studentId === studentId
     );
@@ -74,24 +87,26 @@ export async function POST(request: NextRequest) {
         'DUPLICATE_ATTENDANCE_BLOCKED',
         `พยายามเช็กชื่อซ้ำในกิจกรรม "${activity.title}"`
       );
-      await flushDatabaseToTiDB();
+      await persistDatabase();
       return NextResponse.json(
         {
-          error: 'ท่านได้ทำการเช็กชื่อเข้าร่วมกิจกรรมนี้ไปแล้ว',
+          error: `คุณได้สแกนเข้าร่วมกิจกรรม "${activity.title}" ไปแล้ว`,
           alreadyCheckedIn: true,
+          activityTitle: activity.title,
+          activityHours: activity.hours,
           attendance: existingAttendance,
         },
         { status: 400 }
       );
     }
 
-    // TC-07: Record Attendance
+    // Record Attendance
     const newAttendance: Attendance = {
       id: `att-${Date.now()}`,
       activityId,
       studentId,
       checkInTime: new Date().toISOString(),
-      qrCodeUsed: qrSecret || (byOrganizer ? 'ORGANIZER_MANUAL_VERIFIED' : activity.qrCodeSecret),
+      qrCodeUsed: trimmedSecret || (byOrganizer ? 'ORGANIZER_MANUAL_VERIFIED' : activity.qrCodeSecret),
     };
 
     db.attendances.push(newAttendance);
@@ -116,9 +131,6 @@ export async function POST(request: NextRequest) {
       db.hourRecords.push(hr);
     }
 
-    await persistDatabase(db);
-    await flushDatabaseToTiDB();
-
     const studentUser = db.users.find((u) => u.id === studentId);
     logAudit(
       user.id,
@@ -127,13 +139,15 @@ export async function POST(request: NextRequest) {
       byOrganizer ? 'CHECK_IN_BY_ORGANIZER' : 'CHECK_IN_SUCCESS',
       `${byOrganizer ? 'ผู้จัดเช็กชื่อให้' : 'เช็กชื่อด้วย QR Code'}: กิจกรรม "${activity.title}" สำหรับ ${studentUser?.name || studentId} สำเร็จ`
     );
-    await flushDatabaseToTiDB();
+    await persistDatabase(db);
 
     return NextResponse.json({
       success: true,
       message: byOrganizer
         ? `บันทึกการเช็กชื่อให้นักศึกษา ${studentUser?.name || ''} สำเร็จ`
-        : `เช็กชื่อกิจกรรม "${activity.title}" สำเร็จเรียบร้อยแล้ว`,
+        : `เช็กชื่อกิจกรรม "${activity.title}" (+${activity.hours} ชม.) สำเร็จเรียบร้อยแล้ว`,
+      activityTitle: activity.title,
+      activityHours: activity.hours,
       attendance: newAttendance,
       hourRecord: hr,
     });

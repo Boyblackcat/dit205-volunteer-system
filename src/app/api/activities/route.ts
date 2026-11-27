@@ -73,13 +73,30 @@ export async function GET(request: NextRequest) {
     };
   });
 
+  const managedYears =
+    Array.isArray(db.settings?.academicYears) && db.settings.academicYears.length > 0
+      ? db.settings.academicYears
+      : ['2568', '2569', '2570'];
+  const yearsSet = new Set<string>(managedYears);
+  db.activities.forEach((a) => {
+    if (a.academicYear) yearsSet.add(a.academicYear);
+  });
+  const availableYears = Array.from(yearsSet).sort();
+  const yearActivityCounts: Record<string, number> = {};
+  availableYears.forEach((yr) => {
+    yearActivityCounts[yr] = db.activities.filter((a) => (a.academicYear || '2569') === yr).length;
+  });
+
   return NextResponse.json({
     activities: enriched,
     settings: db.settings,
+    availableYears,
+    yearActivityCounts,
   });
 }
 
 export async function POST(request: NextRequest) {
+  await ensureDbReady();
   const user = getCurrentUser(request);
   if (!user || !checkRolePermission(user, ['organizer', 'admin'])) {
     return NextResponse.json(
@@ -150,7 +167,6 @@ export async function POST(request: NextRequest) {
 
     db.activities.push(newActivity);
     await persistDatabase(db);
-    await flushDatabaseToTiDB();
 
     logAudit(
       user.id,

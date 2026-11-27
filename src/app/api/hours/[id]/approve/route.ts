@@ -7,6 +7,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  await ensureDbReady();
   const user = getCurrentUser(request);
   if (!user || !checkRolePermission(user, ['officer', 'approver', 'admin'])) {
     return NextResponse.json(
@@ -53,7 +54,6 @@ export async function POST(
     record.updatedAt = new Date().toISOString();
 
     await persistDatabase(db);
-    await flushDatabaseToTiDB();
 
     const actionName =
       status === 'approved'

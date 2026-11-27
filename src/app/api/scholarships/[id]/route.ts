@@ -6,6 +6,7 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  await ensureDbReady();
   const user = getCurrentUser(request);
   if (!user || !checkRolePermission(user, ['officer', 'admin'])) {
     return NextResponse.json(
@@ -34,7 +35,6 @@ export async function PUT(
     db.scholarshipTypes[index].updatedAt = new Date().toISOString();
 
     await persistDatabase(db);
-    await flushDatabaseToTiDB();
 
     logAudit(
       user.id,
@@ -59,6 +59,7 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  await ensureDbReady();
   const user = getCurrentUser(request);
   if (!user || !checkRolePermission(user, ['officer', 'admin'])) {
     return NextResponse.json(
@@ -76,7 +77,6 @@ export async function DELETE(
 
   const removed = db.scholarshipTypes.splice(index, 1)[0];
   await persistDatabase(db);
-  await flushDatabaseToTiDB();
 
   logAudit(
     user.id,

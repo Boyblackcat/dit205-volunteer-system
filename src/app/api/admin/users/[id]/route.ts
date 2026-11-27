@@ -7,6 +7,7 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  await ensureDbReady();
   const user = getCurrentUser(request);
   if (!user || !checkRolePermission(user, ['admin'])) {
     return NextResponse.json(
@@ -67,7 +68,6 @@ export async function PUT(
     if (body.password) u.password = body.password;
 
     await persistDatabase(db);
-    await flushDatabaseToTiDB();
     upsertUserToTiDBBackground(u);
 
     logAudit(
@@ -94,6 +94,7 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  await ensureDbReady();
   const user = getCurrentUser(request);
   if (!user || !checkRolePermission(user, ['admin'])) {
     return NextResponse.json(
@@ -118,7 +119,6 @@ export async function DELETE(
 
   const removed = db.users.splice(index, 1)[0];
   await persistDatabase(db);
-  await flushDatabaseToTiDB();
   deleteUserFromTiDBBackground(id);
 
   logAudit(

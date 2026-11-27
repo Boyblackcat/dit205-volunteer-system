@@ -4,6 +4,7 @@ import { getDatabase, saveDatabase, logAudit, splitFullName, composeFullName, en
 import { upsertUserToTiDBBackground } from '@/lib/tidb';
 
 export async function GET(request: NextRequest) {
+  await ensureDbReady();
   const sessionUser = getCurrentUser(request);
   if (!sessionUser) {
     return NextResponse.json({ error: 'กรุณาเข้าสู่ระบบ' }, { status: 401 });
@@ -36,6 +37,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
+  await ensureDbReady();
   const sessionUser = getCurrentUser(request);
   if (!sessionUser) {
     return NextResponse.json({ error: 'กรุณาเข้าสู่ระบบ' }, { status: 401 });
@@ -88,7 +90,6 @@ export async function PUT(request: NextRequest) {
     }
 
     await persistDatabase(db);
-    await flushDatabaseToTiDB();
     upsertUserToTiDBBackground(u);
 
     const validScholarships = db.scholarshipTypes.filter((s) =>

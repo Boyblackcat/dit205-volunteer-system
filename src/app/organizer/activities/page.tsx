@@ -16,6 +16,8 @@ import {
   CalendarDays,
   UserCheck,
   Activity as ActivityIcon,
+  Settings2,
+  AlertTriangle,
 } from 'lucide-react';
 
 export default function OrganizerActivitiesPage() {
@@ -28,12 +30,17 @@ export default function OrganizerActivitiesPage() {
 
   // Academic Year & Semester management
   const [availableYears, setAvailableYears] = useState<string[]>(['2568', '2569', '2570']);
+  const [yearActivityCounts, setYearActivityCounts] = useState<Record<string, number>>({});
   const [activeYear, setActiveYear] = useState('2569');
   const [activeSemester, setActiveSemester] = useState('1');
   const [filterYear, setFilterYear] = useState('');
   const [filterSemester, setFilterSemester] = useState('');
+  const [showYearManager, setShowYearManager] = useState(false);
   const [newYearInput, setNewYearInput] = useState('');
   const [savingTerm, setSavingTerm] = useState(false);
+  const [yearToDelete, setYearToDelete] = useState<string | null>(null);
+  const [deleteYearError, setDeleteYearError] = useState<string | null>(null);
+  const [deletingYear, setDeletingYear] = useState(false);
 
   // Create / Edit Modal
   const [showModal, setShowModal] = useState(false);
@@ -80,15 +87,14 @@ export default function OrganizerActivitiesPage() {
         if (data.settings) {
           setActiveYear(data.settings.academicYear || '2569');
           setActiveSemester(data.settings.semester || '1');
-          const years = new Set<string>(['2568', '2569', '2570']);
-          if (data.settings.academicYear) years.add(data.settings.academicYear);
-          if (Array.isArray(data.settings.academicYears)) {
-            data.settings.academicYears.forEach((y: string) => years.add(y));
-          }
-          (data.activities || []).forEach((a: Activity) => {
-            if (a.academicYear) years.add(a.academicYear);
-          });
-          setAvailableYears(Array.from(years).sort());
+        }
+        if (Array.isArray(data.availableYears) && data.availableYears.length > 0) {
+          setAvailableYears(data.availableYears);
+        } else if (data.settings?.academicYears?.length > 0) {
+          setAvailableYears([...data.settings.academicYears].sort());
+        }
+        if (data.yearActivityCounts) {
+          setYearActivityCounts(data.yearActivityCounts);
         }
       }
     } catch (e) {
@@ -111,26 +117,23 @@ export default function OrganizerActivitiesPage() {
       .catch(() => {});
   }, []);
 
-  const handleSaveTermSettings = async (year: string, semester: string, extraYears?: string[]) => {
+  const handleSaveTermSettings = async (year: string, semester: string) => {
     setSavingTerm(true);
     setMessage(null);
     try {
-      const yearsList = extraYears || availableYears;
       const res = await fetch('/api/admin/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           academicYear: year,
           semester,
-          academicYears: yearsList,
         }),
       });
       if (res.ok) {
         setActiveYear(year);
         setActiveSemester(semester);
-        setAvailableYears(yearsList);
         setMessage({
-          text: `ตั้งค่าปีการศึกษาปัจจุบันเป็น เทอม ${semester}/${year} เรียบร้อยแล้ว`,
+          text: `ตั้งค่าเทอมที่เปิดใช้งานปัจจุบันเป็น เทอม ${semester}/${year} เรียบร้อยแล้ว`,
           type: 'success',
         });
       }
@@ -141,19 +144,71 @@ export default function OrganizerActivitiesPage() {
     }
   };
 
-  const handleAddYear = () => {
-    const trimmed = newYearInput.trim();
+  const addYearValue = async (yr: string) => {
+    const trimmed = yr.trim();
     if (!trimmed || !/^\d{4}$/.test(trimmed)) {
       setMessage({ text: 'กรุณากรอกปีการศึกษาเป็นตัวเลข 4 หลัก (เช่น 2571)', type: 'error' });
       return;
     }
-    if (availableYears.includes(trimmed)) {
-      setMessage({ text: `ปีการศึกษา ${trimmed} มีอยู่ในระบบแล้ว`, type: 'error' });
-      return;
+    setSavingTerm(true);
+    setMessage(null);
+    try {
+      const res = await fetch('/api/admin/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ addAcademicYear: trimmed }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setMessage({ text: data.message || `เพิ่มปีการศึกษา ${trimmed} เรียบร้อยแล้ว`, type: 'success' });
+        setNewYearInput(String(Number(trimmed) + 1));
+        await fetchActivities();
+      } else {
+        setMessage({ text: data.error || 'ไม่สามารถเพิ่มปีการศึกษาได้', type: 'error' });
+      }
+    } catch {
+      setMessage({ text: 'เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์', type: 'error' });
+    } finally {
+      setSavingTerm(false);
     }
-    const updated = [...availableYears, trimmed].sort();
-    setNewYearInput('');
-    handleSaveTermSettings(trimmed, activeSemester, updated);
+  };
+
+  const handleAddYear = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    await addYearValue(newYearInput);
+  };
+
+  const openDeleteYearModal = (yr: string) => {
+    setDeleteYearError(null);
+    setYearToDelete(yr);
+  };
+
+  const confirmDeleteAcademicYear = async () => {
+    if (!yearToDelete) return;
+    setDeletingYear(true);
+    setDeleteYearError(null);
+    setMessage(null);
+    try {
+      const res = await fetch('/api/admin/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ removeAcademicYear: yearToDelete }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        const removed = yearToDelete;
+        setYearToDelete(null);
+        setMessage({ text: data.message || `ลบปีการศึกษา ${removed} เรียบร้อยแล้ว`, type: 'success' });
+        if (filterYear === removed) setFilterYear('');
+        await fetchActivities();
+      } else {
+        setDeleteYearError(data.error || 'ไม่สามารถลบปีการศึกษาได้');
+      }
+    } catch {
+      setDeleteYearError('เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์');
+    } finally {
+      setDeletingYear(false);
+    }
   };
 
   const openCreateModal = () => {
@@ -406,14 +461,14 @@ export default function OrganizerActivitiesPage() {
           </div>
         </div>
 
-        {/* Academic Year & Term Control Bar */}
-        <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
-          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-            {/* Filter Activities by Year / Semester */}
+        {/* Clean Academic Year & Term Control Bar */}
+        <div className="bg-white p-4 sm:p-5 rounded-3xl border border-slate-200/80 shadow-xs space-y-4">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+            {/* Left: Clean Filter */}
             <div className="flex flex-wrap items-center gap-2.5">
               <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5 whitespace-nowrap">
                 <CalendarDays className="w-4 h-4 text-blue-600" />
-                กรองตามปีการศึกษา / เทอม:
+                กรองกิจกรรม:
               </span>
               <select
                 value={filterYear}
@@ -430,7 +485,7 @@ export default function OrganizerActivitiesPage() {
 
               <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
                 {[
-                  { val: '', label: 'ทุกเทอม' },
+                  { val: '', label: 'ทั้งหมด' },
                   { val: '1', label: 'เทอม 1' },
                   { val: '2', label: 'เทอม 2' },
                 ].map((t) => (
@@ -450,55 +505,158 @@ export default function OrganizerActivitiesPage() {
               </div>
             </div>
 
-            {/* Admin: Add New Year / Set Active System Term */}
+            {/* Right: Active Term Badge + Clean Toggle Button for Admin Year Manager */}
             {user?.role === 'admin' && (
-              <div className="flex flex-wrap items-center gap-2 pt-3 lg:pt-0 border-t lg:border-t-0 border-slate-100">
-                <span className="text-xs font-semibold text-slate-600 whitespace-nowrap">
-                  เทอมที่เปิดใช้งานปัจจุบัน:
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="px-3 py-1.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold whitespace-nowrap">
+                  เทอมปัจจุบัน: เทอม {activeSemester}/{activeYear}
                 </span>
-                <select
-                  value={activeYear}
-                  disabled={savingTerm}
-                  onChange={(e) => handleSaveTermSettings(e.target.value, activeSemester)}
-                  className="px-2.5 py-1.5 rounded-xl border border-rose-200 bg-rose-50 text-rose-900 text-xs font-bold"
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!showYearManager) {
+                      const maxYr =
+                        availableYears.length > 0
+                          ? Math.max(...availableYears.map((y) => Number(y) || 2570))
+                          : 2570;
+                      setNewYearInput(String(maxYr + 1));
+                    }
+                    setShowYearManager((prev) => !prev);
+                  }}
+                  className={`px-3.5 py-2 rounded-xl border text-xs font-semibold transition flex items-center gap-1.5 whitespace-nowrap ${
+                    showYearManager
+                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                      : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200'
+                  }`}
                 >
-                  {availableYears.map((y) => (
-                    <option key={y} value={y}>
-                      ปี {y}
-                    </option>
-                  ))}
-                </select>
-                <select
-                  value={activeSemester}
-                  disabled={savingTerm}
-                  onChange={(e) => handleSaveTermSettings(activeYear, e.target.value)}
-                  className="px-2.5 py-1.5 rounded-xl border border-rose-200 bg-rose-50 text-rose-900 text-xs font-bold"
-                >
-                  <option value="1">เทอม 1</option>
-                  <option value="2">เทอม 2</option>
-                </select>
-
-                <div className="flex items-center gap-1.5 ml-1">
-                  <input
-                    type="text"
-                    maxLength={4}
-                    value={newYearInput}
-                    onChange={(e) => setNewYearInput(e.target.value)}
-                    placeholder="เพิ่มปี เช่น 2571"
-                    className="w-28 px-2.5 py-1.5 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-rose-500 focus:outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleAddYear}
-                    disabled={savingTerm}
-                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-semibold transition"
-                  >
-                    + เพิ่มปี
-                  </button>
-                </div>
+                  <Settings2 className="w-3.5 h-3.5" />
+                  {showYearManager ? 'ซ่อนจัดการปี / เทอม' : 'จัดการปี / เทอม'}
+                </button>
               </div>
             )}
           </div>
+
+          {/* Expandable Year & Active Term Manager (Admin) */}
+          {user?.role === 'admin' && showYearManager && (() => {
+            const maxYr =
+              availableYears.length > 0
+                ? Math.max(...availableYears.map((y) => Number(y) || 2570))
+                : 2570;
+            const nextYr = String(maxYr + 1);
+
+            return (
+              <div className="pt-4 border-t border-slate-100 space-y-4">
+                {/* Row 1: Set Active System Term */}
+                <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-bold text-slate-800">ตั้งค่าปีการศึกษาและเทอมที่เปิดใช้งานปัจจุบัน</p>
+                    <p className="text-[11px] text-slate-500">
+                      หน้าสมัครกิจกรรมและกิจกรรมของนักศึกษาจะแสดงปีและเทอมนี้เป็นค่าเริ่มต้นอัตโนมัติ
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <select
+                      value={activeYear}
+                      disabled={savingTerm}
+                      onChange={(e) => handleSaveTermSettings(e.target.value, activeSemester)}
+                      className="px-3 py-1.5 rounded-xl border border-rose-200 bg-white text-rose-900 text-xs font-bold"
+                    >
+                      {availableYears.map((y) => (
+                        <option key={y} value={y}>
+                          ปีการศึกษา {y}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200">
+                      {['1', '2'].map((sem) => (
+                        <button
+                          key={sem}
+                          type="button"
+                          disabled={savingTerm}
+                          onClick={() => handleSaveTermSettings(activeYear, sem)}
+                          className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
+                            activeSemester === sem
+                              ? 'bg-rose-600 text-white shadow-2xs'
+                              : 'text-slate-600 hover:text-slate-900'
+                          }`}
+                        >
+                          เทอม {sem}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Row 2: Add / Delete Academic Years */}
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-bold text-slate-600">
+                      ปีการศึกษาในระบบ ({availableYears.length} ปี):
+                    </span>
+                    {availableYears.map((y) => {
+                      const actCount = yearActivityCounts[y] || 0;
+                      const canDelete = availableYears.length > 1 && actCount === 0;
+                      return (
+                        <div
+                          key={y}
+                          className="inline-flex items-center gap-1.5 pl-3 pr-1.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-bold text-slate-800"
+                        >
+                          <span>ปี {y}</span>
+                          {actCount > 0 && (
+                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-emerald-100 text-emerald-700">
+                              {actCount} กิจกรรม
+                            </span>
+                          )}
+                          <button
+                            type="button"
+                            disabled={savingTerm || availableYears.length <= 1}
+                            onClick={() => openDeleteYearModal(y)}
+                            title={canDelete ? `ลบปีการศึกษา ${y}` : `มีกิจกรรม ${actCount} รายการในปี้`}
+                            className={`w-6 h-6 rounded-lg flex items-center justify-center transition disabled:opacity-30 ${
+                              canDelete
+                                ? 'text-rose-500 hover:bg-rose-100 hover:text-rose-700'
+                                : 'text-slate-400 hover:bg-slate-200'
+                            }`}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 flex-shrink-0">
+                    <button
+                      type="button"
+                      disabled={savingTerm}
+                      onClick={() => addYearValue(nextYr)}
+                      className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs transition flex items-center gap-1.5 disabled:opacity-50"
+                    >
+                      <PlusCircle className="w-3.5 h-3.5" /> เพิ่มปี {nextYr} ทันที
+                    </button>
+
+                    <form onSubmit={handleAddYear} className="flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        maxLength={4}
+                        value={newYearInput}
+                        onChange={(e) => setNewYearInput(e.target.value.replace(/\D/g, ''))}
+                        placeholder="ระบุปี พ.ศ."
+                        className="w-24 px-2.5 py-2 rounded-xl border border-slate-300 text-xs font-semibold bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                      />
+                      <button
+                        type="submit"
+                        disabled={savingTerm}
+                        className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-semibold transition disabled:opacity-50"
+                      >
+                        เพิ่มปีนี้
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
         </div>
 
         {/* Alert */}
@@ -1098,6 +1256,102 @@ export default function OrganizerActivitiesPage() {
             </div>
           </div>
         )}
+        {/* Delete Academic Year Confirmation Pop-up Modal */}
+        {yearToDelete && (() => {
+          const actCount = yearActivityCounts[yearToDelete] || 0;
+          return (
+            <div
+              className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4"
+              onClick={() => !deletingYear && setYearToDelete(null)}
+            >
+              <div
+                className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-rose-200 space-y-5"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center flex-shrink-0">
+                      <AlertTriangle className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h3 className="text-base sm:text-lg font-bold text-slate-900">
+                        ยืนยันการลบปีการศึกษา
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        ตรวจสอบข้อมูลให้แน่ใจก่อนลบออกจากระบบ
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={deletingYear}
+                    onClick={() => setYearToDelete(null)}
+                    className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold flex items-center justify-center disabled:opacity-40"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-center space-y-1">
+                  <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                    ปีการศึกษาที่จะลบ
+                  </span>
+                  <div className="text-2xl font-extrabold text-rose-600">
+                    ปีการศึกษา {yearToDelete}
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    {actCount > 0
+                      ? `พบกิจกรรมอยู่ในปีการศึกษานี้ ${actCount} รายการ`
+                      : 'ไม่มีกิจกรรมค้างอยู่ สามารถลบออกจากระบบและกราฟได้ทันที'}
+                  </p>
+                </div>
+
+                {actCount > 0 && (
+                  <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 text-xs leading-relaxed">
+                    <strong>ไม่สามารถลบได้ในขณะนี้:</strong> ปีการศึกษา {yearToDelete} ยังมีกิจกรรมผูกอยู่จำนวน{' '}
+                    <strong>{actCount} รายการ</strong> กรุณาลบหรือย้ายปีของกิจกรรมดังกล่าวก่อน
+                  </div>
+                )}
+
+                {deleteYearError && (
+                  <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0" />
+                    <span>{deleteYearError}</span>
+                  </div>
+                )}
+
+                <div className="flex flex-col-reverse sm:flex-row justify-end gap-2.5 pt-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    disabled={deletingYear}
+                    onClick={() => setYearToDelete(null)}
+                    className="w-full sm:w-auto px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs sm:text-sm font-semibold transition disabled:opacity-50"
+                  >
+                    ยกเลิก
+                  </button>
+                  <button
+                    type="button"
+                    disabled={deletingYear || actCount > 0}
+                    onClick={confirmDeleteAcademicYear}
+                    className="w-full sm:w-auto px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs sm:text-sm font-semibold shadow-sm transition flex items-center justify-center gap-2 disabled:opacity-45 disabled:cursor-not-allowed"
+                  >
+                    {deletingYear ? (
+                      <>
+                        <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        กำลังลบปีการศึกษา...
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="w-4 h-4" />
+                        ยืนยันลบปี {yearToDelete}
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
       </div>
     </RoleGuard>
   );

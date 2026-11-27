@@ -6,6 +6,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  await ensureDbReady();
   const user = getCurrentUser(request);
   if (!user || !checkRolePermission(user, ['approver', 'officer', 'admin'])) {
     return NextResponse.json(
@@ -34,7 +35,6 @@ export async function POST(
     activity.status = status;
     activity.approvalComment = comment || (status === 'approved' ? 'อนุมัติเปิดรับสมัครกิจกรรม' : 'ไม่อนุมัติกิจกรรม');
     await persistDatabase(db);
-    await flushDatabaseToTiDB();
 
     logAudit(
       user.id,

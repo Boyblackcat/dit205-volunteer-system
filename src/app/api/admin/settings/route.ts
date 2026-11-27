@@ -10,6 +10,7 @@ export async function GET() {
 }
 
 export async function PUT(request: NextRequest) {
+  await ensureDbReady();
   const user = getCurrentUser(request);
   if (!user || !checkRolePermission(user, ['admin'])) {
     return NextResponse.json(
@@ -50,7 +51,6 @@ export async function PUT(request: NextRequest) {
         academicYears: Array.from(existingSet).sort(),
       };
       await persistDatabase(db);
-      await flushDatabaseToTiDB();
 
       logAudit(
         user.id,
@@ -101,7 +101,6 @@ export async function PUT(request: NextRequest) {
           db.settings.academicYear === yr ? nextYears[nextYears.length - 1] : db.settings.academicYear,
       };
       await persistDatabase(db);
-      await flushDatabaseToTiDB();
 
       logAudit(
         user.id,
@@ -125,7 +124,6 @@ export async function PUT(request: NextRequest) {
       ...body,
     };
     await persistDatabase(db);
-    await flushDatabaseToTiDB();
 
     logAudit(
       user.id,

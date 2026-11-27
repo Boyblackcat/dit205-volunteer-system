@@ -5,6 +5,7 @@ import { upsertUserToTiDBBackground } from '@/lib/tidb';
 import { Role, User } from '@/types';
 
 export async function GET(request: NextRequest) {
+  await ensureDbReady();
   const user = getCurrentUser(request);
   if (!user || !checkRolePermission(user, ['admin'])) {
     return NextResponse.json(
@@ -33,6 +34,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  await ensureDbReady();
   const user = getCurrentUser(request);
   if (!user || !checkRolePermission(user, ['admin'])) {
     return NextResponse.json(
@@ -114,7 +116,6 @@ export async function POST(request: NextRequest) {
 
     db.users.push(newUser);
     await persistDatabase(db);
-    await flushDatabaseToTiDB();
     upsertUserToTiDBBackground(newUser);
 
     logAudit(

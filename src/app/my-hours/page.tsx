@@ -28,8 +28,9 @@ export default function MyHoursPage() {
   const [registrations, setRegistrations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterTab, setFilterTab] = useState<'all' | 'need_checkin' | 'need_evidence' | 'approved'>('all');
-  const [filterYear, setFilterYear] = useState('');
-  const [filterSemester, setFilterSemester] = useState('');
+  const [filterYear, setFilterYear] = useState('2569');
+  const [filterSemester, setFilterSemester] = useState('1');
+  const [termInitialized, setTermInitialized] = useState(false);
   const [availableYears, setAvailableYears] = useState<string[]>(['2568', '2569', '2570']);
 
   // Evidence modal state
@@ -57,15 +58,21 @@ export default function MyHoursPage() {
         const data = await res.json();
         const regs = data.registrations || [];
         setRegistrations(regs);
-        const yearsSet = new Set<string>(['2568', '2569', '2570']);
+        const baseYears =
+          Array.isArray(data.settings?.academicYears) && data.settings.academicYears.length > 0
+            ? data.settings.academicYears
+            : ['2568', '2569', '2570'];
+        const yearsSet = new Set<string>(baseYears);
         if (data.settings?.academicYear) yearsSet.add(data.settings.academicYear);
-        if (Array.isArray(data.settings?.academicYears)) {
-          data.settings.academicYears.forEach((y: string) => yearsSet.add(y));
-        }
         regs.forEach((r: any) => {
           if (r.activity?.academicYear) yearsSet.add(r.activity.academicYear);
         });
         setAvailableYears(Array.from(yearsSet).sort());
+        if (!termInitialized && data.settings) {
+          setFilterYear(data.settings.academicYear || '2569');
+          setFilterSemester(data.settings.semester || '1');
+          setTermInitialized(true);
+        }
       }
     } catch (e) {
       console.error(e);
@@ -201,7 +208,6 @@ export default function MyHoursPage() {
               onChange={(e) => setFilterYear(e.target.value)}
               className="px-3 py-1.5 rounded-xl border border-slate-300 text-xs font-semibold bg-white"
             >
-              <option value="">ทุกปีการศึกษา</option>
               {availableYears.map((y) => (
                 <option key={y} value={y}>
                   ปีการศึกษา {y}
@@ -210,7 +216,6 @@ export default function MyHoursPage() {
             </select>
             <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
               {[
-                { val: '', label: 'ทุกเทอม' },
                 { val: '1', label: 'เทอม 1' },
                 { val: '2', label: 'เทอม 2' },
               ].map((t) => (

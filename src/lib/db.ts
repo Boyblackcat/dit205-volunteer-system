@@ -38,6 +38,7 @@ const DB_FILE = path.join(DATA_DIR, 'db.json');
 let cachedDb: DatabaseSchema | null = null;
 let cachedMtimeMs = 0;
 let lastTiDBSyncMs = 0;
+let inflightTiDBLoad: Promise<DatabaseSchema> | null = null;
 
 const INITIAL_SCHOLARSHIPS: ScholarshipType[] = [
   {
@@ -550,26 +551,36 @@ export async function ensureDbReady(): Promise<DatabaseSchema> {
     return getDatabase();
   }
   const now = Date.now();
-  if (cachedDb && now - lastTiDBSyncMs < 1500) {
+  if (cachedDb && now - lastTiDBSyncMs < 5000) {
     return cachedDb;
   }
-  const remote = await loadAppStateFromTiDB();
-  if (remote && Array.isArray(remote.users)) {
-    cachedDb = remote as DatabaseSchema;
-    lastTiDBSyncMs = now;
+  if (inflightTiDBLoad) {
+    return inflightTiDBLoad;
+  }
+  inflightTiDBLoad = (async () => {
     try {
-      ensureDataDir();
-      fs.writeFileSync(DB_FILE, JSON.stringify(cachedDb), 'utf-8');
-      cachedMtimeMs = fs.statSync(DB_FILE).mtimeMs;
-    } catch {
-      // Ignore /tmp write errors
+      const remote = await loadAppStateFromTiDB();
+      if (remote && Array.isArray(remote.users)) {
+        cachedDb = remote as DatabaseSchema;
+        lastTiDBSyncMs = Date.now();
+        try {
+          ensureDataDir();
+          fs.writeFileSync(DB_FILE, JSON.stringify(cachedDb), 'utf-8');
+          cachedMtimeMs = fs.statSync(DB_FILE).mtimeMs;
+        } catch {
+          // Ignore /tmp write errors
+        }
+        return cachedDb;
+      }
+      const local = getDatabase();
+      lastTiDBSyncMs = Date.now();
+      await saveAppStateToTiDB(local);
+      return local;
+    } finally {
+      inflightTiDBLoad = null;
     }
-    return cachedDb;
-  }
-  const local = getDatabase();
-  lastTiDBSyncMs = now;
-  await saveAppStateToTiDB(local);
-  return local;
+  })();
+  return inflightTiDBLoad;
 }
 
 /**

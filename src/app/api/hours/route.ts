@@ -3,6 +3,7 @@ import { getDatabase, ensureDbReady } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
+  await ensureDbReady();
   const user = getCurrentUser(request);
   if (!user) {
     return NextResponse.json({ error: 'กรุณาเข้าสู่ระบบ' }, { status: 401 });

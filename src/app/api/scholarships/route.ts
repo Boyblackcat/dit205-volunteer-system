@@ -9,6 +9,7 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  await ensureDbReady();
   const user = getCurrentUser(request);
   if (!user || !checkRolePermission(user, ['officer', 'admin'])) {
     return NextResponse.json(
@@ -48,7 +49,6 @@ export async function POST(request: NextRequest) {
 
     db.scholarshipTypes.push(newScholarship);
     await persistDatabase(db);
-    await flushDatabaseToTiDB();
 
     logAudit(
       user.id,

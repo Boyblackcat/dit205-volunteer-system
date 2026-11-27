@@ -1,20 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCurrentUser } from '@/lib/auth';
-import { getDatabase, splitFullName, ensureDbReady } from '@/lib/db';
+import { getCurrentUser, createSessionToken } from '@/lib/auth';
+import { ensureDbReady, splitFullName } from '@/lib/db';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
+  const db = await ensureDbReady();
   const sessionUser = getCurrentUser(request);
   if (!sessionUser) {
     return NextResponse.json({ user: null });
   }
 
-  const db = await ensureDbReady();
   const fullUser = db.users.find((u) => u.id === sessionUser.id);
   if (!fullUser) {
     return NextResponse.json({ user: null });
   }
 
-  // Support multiple scholarships
   const userSchIds = fullUser.scholarshipTypeIds && fullUser.scholarshipTypeIds.length > 0
     ? fullUser.scholarshipTypeIds
     : fullUser.scholarshipTypeId
@@ -32,6 +33,7 @@ export async function GET(request: NextRequest) {
   );
 
   return NextResponse.json({
+    token: createSessionToken(fullUser),
     user: {
       id: fullUser.id,
       name: fullUser.name,

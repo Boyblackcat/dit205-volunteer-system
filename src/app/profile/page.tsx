@@ -170,6 +170,13 @@ export default function ProfilePage() {
 
       const data = await res.json();
       if (res.ok) {
+        if (data.token && typeof window !== 'undefined') {
+          try {
+            window.sessionStorage.setItem('rsu_tab_auth_token', data.token);
+          } catch {
+            // ignore
+          }
+        }
         setMessage({
           text: data.message || 'บันทึกข้อมูลส่วนตัวเรียบร้อยแล้ว',
           type: 'success',

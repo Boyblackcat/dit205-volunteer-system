@@ -4,6 +4,7 @@ import { getCurrentUser } from '@/lib/auth';
 import { Registration } from '@/types';
 
 export async function GET(request: NextRequest) {
+  await ensureDbReady();
   const user = getCurrentUser(request);
   if (!user) {
     return NextResponse.json({ error: 'กรุณาเข้าสู่ระบบ' }, { status: 401 });
@@ -72,6 +73,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  await ensureDbReady();
   const user = getCurrentUser(request);
   if (!user) {
     return NextResponse.json({ error: 'กรุณาเข้าสู่ระบบก่อนสมัครกิจกรรม' }, { status: 401 });
@@ -197,7 +199,6 @@ export async function POST(request: NextRequest) {
 
     db.registrations.push(newRegistration);
     await persistDatabase(db);
-    await flushDatabaseToTiDB();
 
     logAudit(
       user.id,

@@ -29,7 +29,6 @@ export async function POST(request: NextRequest) {
           user = foundInTidb;
           db.users.push(foundInTidb);
           await persistDatabase(db);
-          await flushDatabaseToTiDB();
         }
       }
     }

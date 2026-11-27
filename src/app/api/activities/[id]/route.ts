@@ -30,6 +30,7 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  await ensureDbReady();
   const user = getCurrentUser(request);
   if (!user || !checkRolePermission(user, ['organizer', 'admin'])) {
     return NextResponse.json({ error: 'ไม่มีสิทธิ์ในการแก้ไขกิจกรรม' }, { status: 403 });
@@ -71,7 +72,6 @@ export async function PUT(
     }
 
     await persistDatabase(db);
-    await flushDatabaseToTiDB();
 
     logAudit(
       user.id,
@@ -96,6 +96,7 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  await ensureDbReady();
   const user = getCurrentUser(request);
   if (!user || !checkRolePermission(user, ['organizer', 'admin'])) {
     return NextResponse.json({ error: 'ไม่มีสิทธิ์ในการลบกิจกรรม' }, { status: 403 });
@@ -123,7 +124,6 @@ export async function DELETE(
   db.hourRecords = db.hourRecords.filter((h) => h.activityId !== id);
 
   await persistDatabase(db);
-  await flushDatabaseToTiDB();
 
   logAudit(
     user.id,

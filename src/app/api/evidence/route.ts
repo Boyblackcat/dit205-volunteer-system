@@ -23,6 +23,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  await ensureDbReady();
   const user = getCurrentUser(request);
   if (!user) {
     return NextResponse.json({ error: 'กรุณาเข้าสู่ระบบ' }, { status: 401 });
@@ -74,7 +75,6 @@ export async function POST(request: NextRequest) {
     }
 
     await persistDatabase(db);
-    await flushDatabaseToTiDB();
 
     logAudit(
       user.id,
