@@ -107,15 +107,34 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const refreshUser = async () => {
     installTabAuthFetchInterceptor();
+    // Clean up any legacy shared cookie from earlier versions
+    if (typeof document !== 'undefined' && document.cookie.includes('user_session=')) {
+      document.cookie = 'user_session=; Path=/; Max-Age=0; SameSite=Lax';
+    }
+
+    const tabToken =
+      typeof window !== 'undefined' ? window.sessionStorage.getItem(TAB_TOKEN_KEY) : null;
+    if (!tabToken) {
+      setUser(null);
+      setLoading(false);
+      return;
+    }
+
     try {
       const res = await fetch('/api/auth/me');
       if (res.ok) {
         const data = await res.json();
-        setUser(data.user);
-        if (data.token && typeof window !== 'undefined' && !window.sessionStorage.getItem(TAB_TOKEN_KEY)) {
-          saveTabToken(data.token);
+        if (data.user) {
+          setUser(data.user);
+          if (data.token) {
+            saveTabToken(data.token);
+          }
+        } else {
+          clearTabToken();
+          setUser(null);
         }
       } else {
+        clearTabToken();
         setUser(null);
       }
     } catch {
@@ -171,12 +190,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const logout = async () => {
-    clearTabToken();
     try {
       await fetch('/api/auth/logout', { method: 'POST' });
     } catch {
       // ignore
     }
+    clearTabToken();
     setUser(null);
     window.location.href = '/login';
   };

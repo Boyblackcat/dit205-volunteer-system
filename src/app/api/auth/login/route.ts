@@ -87,15 +87,8 @@ export async function POST(request: NextRequest) {
       token,
     });
 
-    // Set cookie
-    response.cookies.set({
-      name: 'user_session',
-      value: token,
-      path: '/',
-      httpOnly: false, // Accessible to client scripts if needed
-      maxAge: 60 * 60 * 24 * 7, // 7 days
-      sameSite: 'lax',
-    });
+    // Clear any legacy shared cookie so sessions remain strictly isolated per browser tab
+    response.cookies.delete('user_session');
 
     return response;
   } catch (error: any) {

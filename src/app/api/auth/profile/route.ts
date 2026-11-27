@@ -135,14 +135,8 @@ export async function PUT(request: NextRequest) {
       token,
     });
 
-    response.cookies.set({
-      name: 'user_session',
-      value: token,
-      path: '/',
-      httpOnly: false,
-      maxAge: 60 * 60 * 24 * 7,
-      sameSite: 'lax',
-    });
+    // Clear any legacy shared cookie so sessions remain strictly isolated per browser tab
+    response.cookies.delete('user_session');
 
     return response;
   } catch (error) {

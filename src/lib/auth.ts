@@ -14,15 +14,13 @@ export interface SessionUser {
 }
 
 export function getCurrentUser(request?: NextRequest): SessionUser | null {
-  // Check cookie or authorization header
+  // Strictly use per-tab Authorization Bearer token (never shared browser cookies)
+  // so logging in on one tab never auto-logs in or overwrites other tabs.
   let token: string | null = null;
   if (request) {
     const authHeader = request.headers.get('authorization');
     if (authHeader && authHeader.startsWith('Bearer ')) {
-      token = authHeader.substring(7);
-    } else {
-      const cookie = request.cookies.get('user_session');
-      if (cookie) token = cookie.value;
+      token = authHeader.substring(7).trim();
     }
   }
 

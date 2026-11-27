@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
-import { logAudit } from '@/lib/db';
+import { ensureDbReady, logAudit } from '@/lib/db';
 
 export async function POST(request: NextRequest) {
+  await ensureDbReady();
   const user = getCurrentUser(request);
   if (user) {
     logAudit(user.id, user.name, user.role, 'LOGOUT', 'ออกจากระบบ');
