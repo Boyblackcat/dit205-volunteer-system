@@ -694,46 +694,40 @@ export default function OrganizerActivitiesPage() {
               ไม่พบกิจกรรมในปีการศึกษา / เทอมที่เลือก
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs sm:text-sm">
-                <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200/80">
-                  <tr>
-                    <th className="py-3.5 px-4">ชื่อกิจกรรม / สถานที่</th>
-                    <th className="py-3.5 px-4 text-center">ปี / เทอม</th>
-                    <th className="py-3.5 px-4">วันและเวลา</th>
-                    <th className="py-3.5 px-4 text-center">ชั่วโมง</th>
-                    <th className="py-3.5 px-4 text-center">ผู้เข้าร่วม (สมัคร / เช็กชื่อ)</th>
-                    <th className="py-3.5 px-4 text-center">สถานะ</th>
-                    <th className="py-3.5 px-4 text-center">จัดการ</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {activities.map((act) => (
-                    <tr key={act.id} className="hover:bg-slate-50/80 transition">
-                      <td className="py-3.5 px-4 font-semibold text-slate-900 max-w-xs">
-                        <div className="truncate">{act.title}</div>
-                        <div className="text-xs text-slate-400 truncate mt-0.5 font-normal">
-                          📍 {act.location}
-                        </div>
-                        <div className="mt-1">
-                          {act.allowedScholarshipNames && act.allowedScholarshipNames.length > 0 ? (
-                            <span className="inline-block text-[10px] bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded-full font-semibold">
-                              🎯 เฉพาะ: {act.allowedScholarshipNames.join(', ')}
-                            </span>
-                          ) : (
-                            <span className="inline-block text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full font-semibold">
-                              🌐 เปิดรับทุกทุน
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-3.5 px-4 text-center whitespace-nowrap">
-                        <span className="bg-slate-100 text-slate-700 text-xs px-2.5 py-1 rounded-lg font-semibold">
-                          เทอม {act.semester || '1'}/{act.academicYear || '2569'}
+            <>
+              {/* Mobile / Tablet Card View (Zero Horizontal Scroll) */}
+              <div className="lg:hidden divide-y divide-slate-100">
+                {activities.map((act) => (
+                  <div key={act.id} className="p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="font-bold text-slate-900 text-sm break-words">{act.title}</div>
+                        <div className="text-xs text-slate-400 mt-0.5 break-words">📍 {act.location}</div>
+                      </div>
+                      <span className="font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-xl text-xs flex-shrink-0">
+                        +{act.hours} ชม.
+                      </span>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                      <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-lg font-semibold">
+                        เทอม {act.semester || '1'}/{act.academicYear || '2569'}
+                      </span>
+                      {getStatusBadge(act.status)}
+                      {act.allowedScholarshipNames && act.allowedScholarshipNames.length > 0 ? (
+                        <span className="inline-block text-[10px] bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded-full font-semibold">
+                          🎯 เฉพาะ: {act.allowedScholarshipNames.join(', ')}
                         </span>
-                      </td>
-                      <td className="py-3.5 px-4 text-slate-600 whitespace-nowrap">
-                        <div>{act.date} ({act.startTime}-{act.endTime})</div>
+                      ) : (
+                        <span className="inline-block text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full font-semibold">
+                          🌐 เปิดรับทุกทุน
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
+                      <div>
+                        <span>{act.date} ({act.startTime}-{act.endTime})</span>
                         {act.registrationDeadline && (
                           <div
                             className={`text-[11px] font-semibold mt-0.5 ${
@@ -751,60 +745,159 @@ export default function OrganizerActivitiesPage() {
                             })}
                           </div>
                         )}
-                      </td>
-                      <td className="py-3.5 px-4 text-center font-bold text-amber-700 whitespace-nowrap">
-                        +{act.hours} ชม.
-                      </td>
-                      <td className="py-3.5 px-4 text-center whitespace-nowrap">
-                        <button
-                          onClick={() => openParticipantsModal(act)}
-                          className="inline-flex items-center gap-1.5 font-semibold text-blue-700 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-xl border border-blue-200 transition text-xs whitespace-nowrap"
-                          title="คลิกเพื่อดูรายชื่อผู้เข้าร่วมทั้งหมด"
-                        >
-                          <Users className="w-3.5 h-3.5" />
-                          <span>
-                            {act.currentParticipants}/{act.maxParticipants} คน
-                          </span>
-                          <span className="text-emerald-700 font-bold ml-1">
-                            (มา {act.checkedInCount ?? 0})
-                          </span>
-                        </button>
-                      </td>
-                      <td className="py-3.5 px-4 text-center whitespace-nowrap">
-                        {getStatusBadge(act.status)}
-                      </td>
-                      <td className="py-3.5 px-4 text-center whitespace-nowrap">
-                        <div className="flex items-center justify-center gap-1.5">
-                          <button
-                            onClick={() => openQrModal(act)}
-                            className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-semibold px-2.5 py-1.5 rounded-xl border border-emerald-300 transition flex items-center gap-1 text-xs whitespace-nowrap"
-                            title="แสดง QR Code สำหรับเช็กชื่อ"
-                          >
-                            <QrCode className="w-3.5 h-3.5" /> QR
-                          </button>
+                      </div>
+                      <button
+                        onClick={() => openParticipantsModal(act)}
+                        className="inline-flex items-center gap-1 font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-xl border border-blue-200 transition text-xs"
+                      >
+                        <Users className="w-3.5 h-3.5" />
+                        <span>{act.currentParticipants}/{act.maxParticipants} คน</span>
+                        <span className="text-emerald-700 font-bold">(มา {act.checkedInCount ?? 0})</span>
+                      </button>
+                    </div>
 
-                          <button
-                            onClick={() => openEditModal(act)}
-                            className="bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold px-2.5 py-1.5 rounded-xl border border-blue-200 transition flex items-center gap-1 text-xs whitespace-nowrap"
-                            title="แก้ไขข้อมูลกิจกรรม"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" /> แก้ไข
-                          </button>
+                    <div className="grid grid-cols-3 gap-2 pt-1">
+                      <button
+                        onClick={() => openQrModal(act)}
+                        className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-semibold py-2 rounded-xl border border-emerald-300 transition flex items-center justify-center gap-1 text-xs"
+                      >
+                        <QrCode className="w-3.5 h-3.5" /> QR
+                      </button>
+                      <button
+                        onClick={() => openEditModal(act)}
+                        className="bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold py-2 rounded-xl border border-blue-200 transition flex items-center justify-center gap-1 text-xs"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" /> แก้ไข
+                      </button>
+                      <button
+                        onClick={() => handleDeleteActivity(act)}
+                        className="bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold py-2 rounded-xl border border-rose-200 transition flex items-center justify-center gap-1 text-xs"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" /> ลบ
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
 
-                          <button
-                            onClick={() => handleDeleteActivity(act)}
-                            className="bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold px-2.5 py-1.5 rounded-xl border border-rose-200 transition flex items-center gap-1 text-xs whitespace-nowrap"
-                            title="ลบกิจกรรม"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" /> ลบ
-                          </button>
-                        </div>
-                      </td>
+              {/* Desktop Fixed-Width Table View (Zero Horizontal Scroll) */}
+              <div className="hidden lg:block">
+                <table className="w-full table-fixed text-left text-xs">
+                  <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200/80">
+                    <tr>
+                      <th className="py-3.5 px-3 w-[29%]">ชื่อกิจกรรม / สถานที่</th>
+                      <th className="py-3.5 px-2 w-[10%] text-center">ปี / เทอม</th>
+                      <th className="py-3.5 px-2 w-[14%]">วันและเวลา</th>
+                      <th className="py-3.5 px-2 w-[8%] text-center">ชั่วโมง</th>
+                      <th className="py-3.5 px-2 w-[13%] text-center">ผู้เข้าร่วม</th>
+                      <th className="py-3.5 px-2 w-[10%] text-center">สถานะ</th>
+                      <th className="py-3.5 px-2 w-[16%] text-center">จัดการ</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {activities.map((act) => (
+                      <tr key={act.id} className="hover:bg-slate-50/80 transition">
+                        <td className="py-3 px-3 font-semibold text-slate-900 min-w-0">
+                          <div className="truncate text-xs sm:text-[13px]" title={act.title}>
+                            {act.title}
+                          </div>
+                          <div className="text-[11px] text-slate-400 truncate mt-0.5 font-normal" title={act.location}>
+                            📍 {act.location}
+                          </div>
+                          <div className="mt-1">
+                            {act.allowedScholarshipNames && act.allowedScholarshipNames.length > 0 ? (
+                              <span className="inline-block text-[10px] bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded-full font-semibold max-w-full truncate">
+                                🎯 เฉพาะ: {act.allowedScholarshipNames.join(', ')}
+                              </span>
+                            ) : (
+                              <span className="inline-block text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full font-semibold">
+                                🌐 เปิดรับทุกทุน
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3 px-2 text-center">
+                          <span className="bg-slate-100 text-slate-700 text-[11px] px-2 py-1 rounded-lg font-semibold inline-block">
+                            เทอม {act.semester || '1'}/{act.academicYear || '2569'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-2 text-slate-600">
+                          <div className="font-medium text-slate-700">{act.date}</div>
+                          <div className="text-[11px] text-slate-500">
+                            {act.startTime}-{act.endTime}
+                          </div>
+                          {act.registrationDeadline && (
+                            <div
+                              className={`text-[10px] font-semibold mt-0.5 leading-tight ${
+                                new Date() > new Date(act.registrationDeadline)
+                                  ? 'text-rose-600'
+                                  : 'text-amber-700'
+                              }`}
+                            >
+                              {new Date() > new Date(act.registrationDeadline)
+                                ? 'ปิดรับแล้ว: '
+                                : 'สมัครถึง: '}
+                              {new Date(act.registrationDeadline).toLocaleString('th-TH', {
+                                dateStyle: 'short',
+                                timeStyle: 'short',
+                              })}
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-3 px-2 text-center font-bold text-amber-700">
+                          +{act.hours} ชม.
+                        </td>
+                        <td className="py-3 px-2 text-center">
+                          <button
+                            onClick={() => openParticipantsModal(act)}
+                            className="inline-flex flex-col xl:flex-row items-center justify-center gap-0.5 xl:gap-1 font-semibold text-blue-700 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-xl border border-blue-200 transition text-[11px] max-w-full"
+                            title="คลิกเพื่อดูรายชื่อผู้เข้าร่วมทั้งหมด"
+                          >
+                            <span className="inline-flex items-center gap-1">
+                              <Users className="w-3 h-3 flex-shrink-0" />
+                              {act.currentParticipants}/{act.maxParticipants}
+                            </span>
+                            <span className="text-emerald-700 font-bold">
+                              (มา {act.checkedInCount ?? 0})
+                            </span>
+                          </button>
+                        </td>
+                        <td className="py-3 px-2 text-center">
+                          {getStatusBadge(act.status)}
+                        </td>
+                        <td className="py-3 px-2 text-center">
+                          <div className="flex flex-wrap items-center justify-center gap-1">
+                            <button
+                              onClick={() => openQrModal(act)}
+                              className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-semibold px-2 py-1.5 rounded-lg border border-emerald-300 transition inline-flex items-center gap-1 text-[11px]"
+                              title="แสดง QR Code สำหรับเช็กชื่อ"
+                            >
+                              <QrCode className="w-3.5 h-3.5" /> QR
+                            </button>
+
+                            <button
+                              onClick={() => openEditModal(act)}
+                              className="bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold px-2 py-1.5 rounded-lg border border-blue-200 transition inline-flex items-center gap-1 text-[11px]"
+                              title="แก้ไขข้อมูลกิจกรรม"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" /> แก้ไข
+                            </button>
+
+                            <button
+                              onClick={() => handleDeleteActivity(act)}
+                              className="bg-rose-50 hover:bg-rose-100 text-rose-700 font-semibold px-2 py-1.5 rounded-lg border border-rose-200 transition inline-flex items-center gap-1 text-[11px]"
+                              title="ลบกิจกรรม"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" /> ลบ
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
 
@@ -1201,57 +1294,102 @@ export default function OrganizerActivitiesPage() {
               ) : participants.length === 0 ? (
                 <div className="py-8 text-center text-xs text-slate-500">ยังไม่มีผู้สมัครกิจกรรมนี้</div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs sm:text-sm">
-                    <thead className="bg-slate-50 text-slate-600 font-semibold border-b">
-                      <tr>
-                        <th className="py-2.5 px-3">ชื่อ-นามสกุล</th>
-                        <th className="py-2.5 px-3">รหัสนักศึกษา</th>
-                        <th className="py-2.5 px-3">คณะ/วิทยาลัย</th>
-                        <th className="py-2.5 px-3 text-center">สถานะเช็กชื่อ</th>
-                        <th className="py-2.5 px-3 text-center">เช็กชื่อหน้างาน</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {participants.map((p) => (
-                        <tr key={p.id}>
-                          <td className="py-2.5 px-3 font-medium text-slate-900 whitespace-nowrap">
-                            {p.student?.name}
-                          </td>
-                          <td className="py-2.5 px-3 font-mono text-slate-600 whitespace-nowrap">
-                            {p.student?.studentId || '-'}
-                          </td>
-                          <td className="py-2.5 px-3 text-slate-500">{p.student?.faculty}</td>
-                          <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                            {p.attendance ? (
-                              <span className="bg-emerald-100 text-emerald-800 text-xs px-2.5 py-0.5 rounded-full font-semibold">
-                                ✓ เช็กชื่อแล้ว
-                              </span>
-                            ) : (
-                              <span className="bg-amber-100 text-amber-800 text-xs px-2.5 py-0.5 rounded-full font-medium">
-                                รอเช็กชื่อ
-                              </span>
+                <>
+                  {/* Mobile Card View */}
+                  <div className="sm:hidden divide-y divide-slate-100">
+                    {participants.map((p) => (
+                      <div key={p.id} className="py-3 space-y-2 text-xs">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="font-semibold text-slate-900 break-words">{p.student?.name}</div>
+                            <div className="text-[11px] text-slate-500 font-mono">
+                              รหัส: {p.student?.studentId || '-'}
+                            </div>
+                            {p.student?.faculty && (
+                              <div className="text-[11px] text-slate-400 break-words">{p.student.faculty}</div>
                             )}
-                          </td>
-                          <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                            {p.attendance ? (
-                              <span className="text-xs text-slate-400">
-                                {new Date(p.attendance.checkInTime).toLocaleTimeString('th-TH')}
-                              </span>
-                            ) : (
-                              <button
-                                onClick={() => handleOrganizerCheckIn(p.studentId)}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1 rounded-lg text-xs font-semibold shadow-2xs transition"
-                              >
-                                ✓ ยืนยันเช็กชื่อ
-                              </button>
-                            )}
-                          </td>
+                          </div>
+                          {p.attendance ? (
+                            <span className="bg-emerald-100 text-emerald-800 text-[11px] px-2.5 py-0.5 rounded-full font-semibold flex-shrink-0">
+                              ✓ เช็กชื่อแล้ว
+                            </span>
+                          ) : (
+                            <span className="bg-amber-100 text-amber-800 text-[11px] px-2.5 py-0.5 rounded-full font-medium flex-shrink-0">
+                              รอเช็กชื่อ
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex justify-end">
+                          {p.attendance ? (
+                            <span className="text-[11px] text-slate-400">
+                              เวลาเช็กชื่อ: {new Date(p.attendance.checkInTime).toLocaleTimeString('th-TH')}
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => handleOrganizerCheckIn(p.studentId)}
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold shadow-2xs transition"
+                            >
+                              ✓ ยืนยันเช็กชื่อ
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Desktop Fixed-Width Table View */}
+                  <div className="hidden sm:block">
+                    <table className="w-full table-fixed text-left text-xs">
+                      <thead className="bg-slate-50 text-slate-600 font-semibold border-b">
+                        <tr>
+                          <th className="py-2.5 px-2.5 w-[28%]">ชื่อ-นามสกุล</th>
+                          <th className="py-2.5 px-2 w-[16%]">รหัสนักศึกษา</th>
+                          <th className="py-2.5 px-2 w-[22%]">คณะ/วิทยาลัย</th>
+                          <th className="py-2.5 px-2 w-[16%] text-center">สถานะ</th>
+                          <th className="py-2.5 px-2 w-[18%] text-center">เช็กชื่อหน้างาน</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {participants.map((p) => (
+                          <tr key={p.id}>
+                            <td className="py-2.5 px-2.5 font-medium text-slate-900 break-words">
+                              {p.student?.name}
+                            </td>
+                            <td className="py-2.5 px-2 font-mono text-slate-600 break-all">
+                              {p.student?.studentId || '-'}
+                            </td>
+                            <td className="py-2.5 px-2 text-slate-500 break-words">{p.student?.faculty}</td>
+                            <td className="py-2.5 px-2 text-center">
+                              {p.attendance ? (
+                                <span className="bg-emerald-100 text-emerald-800 text-[11px] px-2 py-0.5 rounded-full font-semibold inline-block">
+                                  ✓ เช็กชื่อแล้ว
+                                </span>
+                              ) : (
+                                <span className="bg-amber-100 text-amber-800 text-[11px] px-2 py-0.5 rounded-full font-medium inline-block">
+                                  รอเช็กชื่อ
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-2 text-center">
+                              {p.attendance ? (
+                                <span className="text-[11px] text-slate-400">
+                                  {new Date(p.attendance.checkInTime).toLocaleTimeString('th-TH')}
+                                </span>
+                              ) : (
+                                <button
+                                  onClick={() => handleOrganizerCheckIn(p.studentId)}
+                                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1 rounded-lg text-[11px] font-semibold shadow-2xs transition"
+                                >
+                                  ✓ เช็กชื่อ
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
               )}
             </div>
           </div>

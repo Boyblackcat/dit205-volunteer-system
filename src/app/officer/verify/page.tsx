@@ -204,8 +204,8 @@ export default function OfficerVerifyPage() {
             </div>
           ) : (
             <>
-              {/* Mobile Card View */}
-              <div className="md:hidden divide-y divide-slate-100">
+              {/* Mobile / Tablet Card View */}
+              <div className="lg:hidden divide-y divide-slate-100">
                 {hourRecords.map((hr) => (
                   <div key={hr.id} className="p-4 space-y-3">
                     <div className="flex items-start justify-between gap-2">
@@ -278,81 +278,81 @@ export default function OfficerVerifyPage() {
                 ))}
               </div>
 
-              {/* Desktop Table View */}
-              <div className="hidden md:block overflow-x-auto">
-                <table className="w-full text-left text-xs">
+              {/* Desktop Fixed-Width Table View */}
+              <div className="hidden lg:block">
+                <table className="w-full table-fixed text-left text-xs">
                   <thead className="bg-slate-50 text-slate-600 uppercase font-semibold border-b border-slate-200">
                     <tr>
-                      <th className="py-3.5 px-4">นักศึกษา</th>
-                      <th className="py-3.5 px-4">ประเภททุน</th>
-                      <th className="py-3.5 px-4">กิจกรรม</th>
-                      <th className="py-3.5 px-4 text-center">ชั่วโมง</th>
-                      <th className="py-3.5 px-4 text-center">เช็กชื่อ/หลักฐาน</th>
-                      <th className="py-3.5 px-4 text-center">สถานะ</th>
-                      <th className="py-3.5 px-4 text-center">การดำเนินการ</th>
+                      <th className="py-3.5 px-3 w-[16%]">นักศึกษา</th>
+                      <th className="py-3.5 px-2.5 w-[14%]">ประเภททุน</th>
+                      <th className="py-3.5 px-2.5 w-[22%]">กิจกรรม</th>
+                      <th className="py-3.5 px-2 w-[8%] text-center">ชั่วโมง</th>
+                      <th className="py-3.5 px-2 w-[15%] text-center">เช็กชื่อ/หลักฐาน</th>
+                      <th className="py-3.5 px-2 w-[13%] text-center">สถานะ</th>
+                      <th className="py-3.5 px-2 w-[12%] text-center">จัดการ</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {hourRecords.map((hr) => (
                       <tr key={hr.id} className="hover:bg-slate-50/80 transition">
-                        <td className="py-3.5 px-4 font-semibold text-slate-900 whitespace-nowrap">
+                        <td className="py-3 px-3 font-semibold text-slate-900 break-words">
                           <div>{hr.student?.name}</div>
                           <div className="text-[11px] text-slate-400 font-mono">
                             รหัส: {hr.student?.studentId || '-'}
                           </div>
                         </td>
-                        <td className="py-3.5 px-4 text-slate-600 min-w-[160px]">
+                        <td className="py-3 px-2.5 text-slate-600 break-words">
                           {hr.student?.scholarshipName}
                         </td>
-                        <td className="py-3.5 px-4 font-medium text-slate-900 max-w-xs">
-                          <div className="truncate">{hr.activity?.title}</div>
-                          <span className="inline-block mt-0.5 text-[11px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-semibold whitespace-nowrap">
+                        <td className="py-3 px-2.5 font-medium text-slate-900 min-w-0">
+                          <div className="truncate" title={hr.activity?.title}>{hr.activity?.title}</div>
+                          <span className="inline-block mt-0.5 text-[11px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-semibold">
                             เทอม {hr.activity?.semester || '1'}/{hr.activity?.academicYear || '2569'}
                           </span>
                         </td>
-                        <td className="py-3.5 px-4 text-center font-bold text-emerald-600 whitespace-nowrap">
+                        <td className="py-3 px-2 text-center font-bold text-emerald-600">
                           {hr.hours} ชม.
                         </td>
-                        <td className="py-3.5 px-4 text-center whitespace-nowrap">
-                          <div className="flex items-center justify-center gap-1.5">
+                        <td className="py-3 px-2 text-center">
+                          <div className="flex flex-wrap items-center justify-center gap-1">
                             {hr.attendance ? (
-                              <span className="text-[11px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded font-medium border border-emerald-200 whitespace-nowrap">
+                              <span className="text-[10px] bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded font-medium border border-emerald-200">
                                 ✓ เช็กชื่อแล้ว
                               </span>
                             ) : (
-                              <span className="text-[11px] text-slate-400 whitespace-nowrap">ยังไม่เช็กชื่อ</span>
+                              <span className="text-[10px] text-slate-400">ยังไม่เช็กชื่อ</span>
                             )}
                             {hr.evidence && (
-                              <span className="text-[11px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded font-medium border border-blue-200 whitespace-nowrap">
+                              <span className="text-[10px] bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded font-medium border border-blue-200">
                                 📷 มีหลักฐาน
                               </span>
                             )}
                           </div>
                         </td>
-                        <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                        <td className="py-3 px-2 text-center">
                           {hr.status === 'approved' && (
-                            <span className="bg-emerald-100 text-emerald-800 text-[11px] px-2.5 py-1 rounded-full font-bold whitespace-nowrap">
+                            <span className="bg-emerald-100 text-emerald-800 text-[11px] px-2 py-1 rounded-full font-bold inline-block">
                               ✓ อนุมัติแล้ว
                             </span>
                           )}
                           {hr.status === 'verified_by_officer' && (
-                            <span className="bg-blue-100 text-blue-800 text-[11px] px-2.5 py-1 rounded-full font-semibold whitespace-nowrap">
+                            <span className="bg-blue-100 text-blue-800 text-[11px] px-2 py-1 rounded-full font-semibold inline-block">
                               จนท. ตรวจแล้ว
                             </span>
                           )}
                           {hr.status === 'pending' && (
-                            <span className="bg-amber-100 text-amber-800 text-[11px] px-2.5 py-1 rounded-full font-semibold whitespace-nowrap">
+                            <span className="bg-amber-100 text-amber-800 text-[11px] px-2 py-1 rounded-full font-semibold inline-block">
                               รอตรวจสอบ
                             </span>
                           )}
                           {hr.status === 'rejected' && (
                             <div className="flex flex-col items-center gap-0.5">
-                              <span className="bg-rose-100 text-rose-800 text-[11px] px-2.5 py-1 rounded-full font-semibold whitespace-nowrap">
+                              <span className="bg-rose-100 text-rose-800 text-[11px] px-2 py-1 rounded-full font-semibold inline-block">
                                 ส่งกลับแก้ไข
                               </span>
                               {(hr.officerComment || hr.approverComment) && (
                                 <span
-                                  className="text-[10px] text-rose-600 max-w-[140px] truncate"
+                                  className="text-[10px] text-rose-600 max-w-full truncate"
                                   title={hr.officerComment || hr.approverComment}
                                 >
                                   {hr.officerComment || hr.approverComment}
@@ -361,12 +361,12 @@ export default function OfficerVerifyPage() {
                             </div>
                           )}
                         </td>
-                        <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                        <td className="py-3 px-2 text-center">
                           <div className="flex items-center justify-center">
                             <button
                               type="button"
                               onClick={() => openReviewModal(hr)}
-                              className="bg-amber-50 hover:bg-amber-100 text-amber-800 font-semibold px-3 py-1.5 rounded-xl border border-amber-300 transition text-[11px] flex items-center gap-1 whitespace-nowrap"
+                              className="bg-amber-50 hover:bg-amber-100 text-amber-800 font-semibold px-2.5 py-1.5 rounded-xl border border-amber-300 transition text-[11px] inline-flex items-center gap-1"
                             >
                               <Eye className="w-3.5 h-3.5" /> ตรวจสอบ
                             </button>

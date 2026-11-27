@@ -15,8 +15,7 @@ body {
   overflow-x: hidden;
 }
 
-/* Keep table headers and explicit pill badges on a single line */
-th,
+/* Keep explicit pill badges on a single line without forcing horizontal table scroll */
 .nowrap-pill {
   white-space: nowrap;
 }

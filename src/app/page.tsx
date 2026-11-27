@@ -744,31 +744,59 @@ export default function HomePage() {
                 )}
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs sm:text-sm">
+              {/* Mobile Card View */}
+              <div className="md:hidden divide-y divide-slate-100">
+                {dashboardData.scholarshipSummary.map((sch: any) => (
+                  <div key={sch.id} className="p-4 space-y-2.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="font-semibold text-slate-900 text-sm">{sch.name}</div>
+                      <span className="font-bold text-emerald-600 text-xs flex-shrink-0">
+                        {sch.totalApprovedHours} ชม.
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
+                      <span>เกณฑ์: <strong className="text-slate-700">{sch.targetHoursPerStudent} ชม./คน</strong></span>
+                      <span>นักศึกษา: <strong className="text-slate-700">{sch.studentCount} คน</strong></span>
+                    </div>
+                    <div className="flex items-center gap-2.5">
+                      <div className="flex-1 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                        <div
+                          className="bg-emerald-500 h-full rounded-full"
+                          style={{ width: `${sch.achievementRate}%` }}
+                        />
+                      </div>
+                      <span className="font-bold text-slate-700 text-xs">{sch.achievementRate}%</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Desktop Fixed-Width Table View */}
+              <div className="hidden md:block">
+                <table className="w-full table-fixed text-left text-xs sm:text-sm">
                   <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200/80">
                     <tr>
-                      <th className="py-3.5 px-5">ประเภททุนการศึกษา</th>
-                      <th className="py-3.5 px-4 text-center">เกณฑ์ชั่วโมง/คน</th>
-                      <th className="py-3.5 px-4 text-center">จำนวนนักศึกษา</th>
-                      <th className="py-3.5 px-4 text-center">ชั่วโมงอนุมัติรวม</th>
-                      <th className="py-3.5 px-5 text-center">ความคืบหน้าเฉลี่ย</th>
+                      <th className="py-3.5 px-4 w-[32%]">ประเภททุนการศึกษา</th>
+                      <th className="py-3.5 px-3 w-[14%] text-center">เกณฑ์/คน</th>
+                      <th className="py-3.5 px-3 w-[14%] text-center">นักศึกษา</th>
+                      <th className="py-3.5 px-3 w-[16%] text-center">อนุมัติรวม</th>
+                      <th className="py-3.5 px-4 w-[24%] text-center">ความคืบหน้าเฉลี่ย</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {dashboardData.scholarshipSummary.map((sch: any) => (
                       <tr key={sch.id} className="hover:bg-slate-50/80 transition">
-                        <td className="py-3.5 px-5 font-semibold text-slate-900">{sch.name}</td>
-                        <td className="py-3.5 px-4 text-center font-semibold text-slate-700">
+                        <td className="py-3.5 px-4 font-semibold text-slate-900 break-words">{sch.name}</td>
+                        <td className="py-3.5 px-3 text-center font-semibold text-slate-700">
                           {sch.targetHoursPerStudent} ชม.
                         </td>
-                        <td className="py-3.5 px-4 text-center text-slate-600">{sch.studentCount} คน</td>
-                        <td className="py-3.5 px-4 text-center font-bold text-emerald-600">
+                        <td className="py-3.5 px-3 text-center text-slate-600">{sch.studentCount} คน</td>
+                        <td className="py-3.5 px-3 text-center font-bold text-emerald-600">
                           {sch.totalApprovedHours} ชม.
                         </td>
-                        <td className="py-3.5 px-5 text-center">
-                          <div className="flex items-center justify-center gap-2.5">
-                            <div className="w-24 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                        <td className="py-3.5 px-4 text-center">
+                          <div className="flex items-center justify-center gap-2">
+                            <div className="w-24 bg-slate-200 rounded-full h-2.5 overflow-hidden flex-shrink-0">
                               <div
                                 className="bg-emerald-500 h-full rounded-full"
                                 style={{ width: `${sch.achievementRate}%` }}

@@ -361,69 +361,123 @@ export default function AdminUsersPage() {
               <p className="text-xs text-gray-500">กำลังโหลดรายการผู้ใช้งาน...</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-gray-50 text-gray-600 uppercase font-semibold border-b">
-                  <tr>
-                    <th className="py-3 px-4">ชื่อ</th>
-                    <th className="py-3 px-4">นามสกุล</th>
-                    <th className="py-3 px-4">อีเมล</th>
-                    <th className="py-3 px-4 text-center">บทบาท (RBAC)</th>
-                    <th className="py-3 px-4">รหัสนักศึกษา / ทุน</th>
-                    <th className="py-3 px-4">คณะ / สาขา</th>
-                    <th className="py-3 px-4 text-center">การดำเนินการ</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {users.map((u) => (
-                    <tr key={u.id} className="hover:bg-gray-50/80 transition">
-                      <td className="py-3 px-4 font-semibold text-gray-900">
-                        {u.firstName || u.name}
-                      </td>
-                      <td className="py-3 px-4 font-semibold text-gray-700">
-                        {u.lastName || '-'}
-                      </td>
-                      <td className="py-3 px-4 text-gray-600 font-mono">{u.email}</td>
-                      <td className="py-3 px-4 text-center">{getRoleBadge(u.role)}</td>
-                      <td className="py-3 px-4 text-gray-600">
-                        {u.role === 'student' ? (
-                          <div>
-                            <span className="font-mono font-medium">{u.studentId || '-'}</span>
-                            <span className="text-[11px] text-gray-400 block truncate">
-                              {(u as any).scholarshipName}
-                            </span>
-                          </div>
-                        ) : (
-                          <span className="text-gray-400">-</span>
-                        )}
-                      </td>
-                      <td className="py-3 px-4 text-gray-600">
-                        <div>{u.faculty || '-'}</div>
-                        {u.major && <div className="text-[11px] text-gray-400">{u.major}</div>}
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        <div className="flex items-center justify-center gap-1.5">
-                          <button
-                            onClick={() => openEditModal(u)}
-                            className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
-                            title="แก้ไขข้อมูลและบทบาท"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(u.id, u.name)}
-                            className="p-1.5 text-gray-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
-                            title="ลบบัญชี"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+            <>
+              {/* Mobile / Tablet Card View */}
+              <div className="lg:hidden divide-y divide-gray-100">
+                {users.map((u) => (
+                  <div key={u.id} className="p-4 space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="font-semibold text-gray-900 text-sm break-words">
+                          {u.firstName || u.name} {u.lastName || ''}
                         </div>
-                      </td>
+                        <div className="text-xs text-gray-500 font-mono break-all mt-0.5">{u.email}</div>
+                      </div>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <button
+                          onClick={() => openEditModal(u)}
+                          className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                          title="แก้ไขข้อมูลและบทบาท"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(u.id, u.name)}
+                          className="p-1.5 text-gray-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                          title="ลบบัญชี"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                      {getRoleBadge(u.role)}
+                      {u.role === 'student' && u.studentId && (
+                        <span className="font-mono text-gray-600 bg-gray-100 px-2 py-0.5 rounded-md">
+                          รหัส: {u.studentId}
+                        </span>
+                      )}
+                    </div>
+                    {u.role === 'student' && (u as any).scholarshipName && (
+                      <div className="text-xs text-emerald-700 font-medium">
+                        ทุน: {(u as any).scholarshipName}
+                      </div>
+                    )}
+                    {(u.faculty || u.major) && (
+                      <div className="text-xs text-gray-500">
+                        {u.faculty || '-'}
+                        {u.major ? ` • ${u.major}` : ''}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Desktop Fixed-Width Table View */}
+              <div className="hidden lg:block">
+                <table className="w-full table-fixed text-left text-xs">
+                  <thead className="bg-gray-50 text-gray-600 uppercase font-semibold border-b">
+                    <tr>
+                      <th className="py-3 px-3 w-[13%]">ชื่อ</th>
+                      <th className="py-3 px-3 w-[13%]">นามสกุล</th>
+                      <th className="py-3 px-3 w-[20%]">อีเมล</th>
+                      <th className="py-3 px-2 w-[13%] text-center">บทบาท</th>
+                      <th className="py-3 px-3 w-[16%]">รหัสนักศึกษา / ทุน</th>
+                      <th className="py-3 px-3 w-[16%]">คณะ / สาขา</th>
+                      <th className="py-3 px-2 w-[9%] text-center">จัดการ</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {users.map((u) => (
+                      <tr key={u.id} className="hover:bg-gray-50/80 transition">
+                        <td className="py-3 px-3 font-semibold text-gray-900 break-words">
+                          {u.firstName || u.name}
+                        </td>
+                        <td className="py-3 px-3 font-semibold text-gray-700 break-words">
+                          {u.lastName || '-'}
+                        </td>
+                        <td className="py-3 px-3 text-gray-600 font-mono break-all">{u.email}</td>
+                        <td className="py-3 px-2 text-center">{getRoleBadge(u.role)}</td>
+                        <td className="py-3 px-3 text-gray-600">
+                          {u.role === 'student' ? (
+                            <div className="min-w-0">
+                              <span className="font-mono font-medium">{u.studentId || '-'}</span>
+                              <span className="text-[11px] text-gray-400 block break-words">
+                                {(u as any).scholarshipName}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-gray-400">-</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-3 text-gray-600 break-words">
+                          <div>{u.faculty || '-'}</div>
+                          {u.major && <div className="text-[11px] text-gray-400">{u.major}</div>}
+                        </td>
+                        <td className="py-3 px-2 text-center">
+                          <div className="flex items-center justify-center gap-1">
+                            <button
+                              onClick={() => openEditModal(u)}
+                              className="p-1.5 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                              title="แก้ไขข้อมูลและบทบาท"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(u.id, u.name)}
+                              className="p-1.5 text-gray-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                              title="ลบบัญชี"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
 

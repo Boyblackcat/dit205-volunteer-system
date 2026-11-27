@@ -120,29 +120,48 @@ export default function ReportsPage() {
                 </h3>
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
+              {/* Mobile Card View */}
+              <div className="md:hidden divide-y divide-gray-100">
+                {data.scholarshipSummary?.map((sch: any) => (
+                  <div key={sch.id} className="p-4 space-y-2 text-xs">
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="font-semibold text-gray-900 text-sm">{sch.name}</span>
+                      <span className="font-bold text-emerald-600">{sch.achievementRate}%</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5 text-gray-600">
+                      <span>เกณฑ์/คน: <strong>{sch.targetHoursPerStudent} ชม.</strong></span>
+                      <span>นักศึกษา: <strong>{sch.studentCount} คน</strong></span>
+                      <span>เป้าหมายรวม: <strong>{sch.totalTargetHours} ชม.</strong></span>
+                      <span>อนุมัติแล้ว: <strong className="text-emerald-600">{sch.totalApprovedHours} ชม.</strong></span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Desktop Fixed-Width Table View */}
+              <div className="hidden md:block">
+                <table className="w-full table-fixed text-left text-xs">
                   <thead className="bg-gray-50 text-gray-600 uppercase font-semibold border-b">
                     <tr>
-                      <th className="py-3 px-4">ประเภททุน</th>
-                      <th className="py-3 px-4 text-center">เกณฑ์ชั่วโมง/คน</th>
-                      <th className="py-3 px-4 text-center">จำนวนนักศึกษา</th>
-                      <th className="py-3 px-4 text-center">เป้าหมายรวม</th>
-                      <th className="py-3 px-4 text-center">อนุมัติแล้ว</th>
-                      <th className="py-3 px-4 text-center">อัตราความสำเร็จ</th>
+                      <th className="py-3 px-3 w-[30%]">ประเภททุน</th>
+                      <th className="py-3 px-2 w-[14%] text-center">เกณฑ์/คน</th>
+                      <th className="py-3 px-2 w-[14%] text-center">นักศึกษา</th>
+                      <th className="py-3 px-2 w-[14%] text-center">เป้าหมายรวม</th>
+                      <th className="py-3 px-2 w-[14%] text-center">อนุมัติแล้ว</th>
+                      <th className="py-3 px-2 w-[14%] text-center">อัตราสำเร็จ</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {data.scholarshipSummary?.map((sch: any) => (
                       <tr key={sch.id} className="hover:bg-gray-50/80">
-                        <td className="py-3 px-4 font-semibold text-gray-900">{sch.name}</td>
-                        <td className="py-3 px-4 text-center">{sch.targetHoursPerStudent} ชม.</td>
-                        <td className="py-3 px-4 text-center">{sch.studentCount} คน</td>
-                        <td className="py-3 px-4 text-center">{sch.totalTargetHours} ชม.</td>
-                        <td className="py-3 px-4 text-center font-bold text-emerald-600">
+                        <td className="py-3 px-3 font-semibold text-gray-900 break-words">{sch.name}</td>
+                        <td className="py-3 px-2 text-center">{sch.targetHoursPerStudent} ชม.</td>
+                        <td className="py-3 px-2 text-center">{sch.studentCount} คน</td>
+                        <td className="py-3 px-2 text-center">{sch.totalTargetHours} ชม.</td>
+                        <td className="py-3 px-2 text-center font-bold text-emerald-600">
                           {sch.totalApprovedHours} ชม.
                         </td>
-                        <td className="py-3 px-4 text-center font-bold text-gray-800">
+                        <td className="py-3 px-2 text-center font-bold text-gray-800">
                           {sch.achievementRate}%
                         </td>
                       </tr>

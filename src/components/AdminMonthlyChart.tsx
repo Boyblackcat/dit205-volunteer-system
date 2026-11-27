@@ -221,8 +221,8 @@ export const AdminMonthlyChart: React.FC<AdminMonthlyChartProps> = ({
           )}
         </div>
 
-        <div className="overflow-x-auto pb-1">
-          <div className="min-w-[540px]">
+        <div className="w-full pb-1">
+          <div className="w-full">
             <svg
               viewBox={`0 0 ${chartW} ${chartH}`}
               className="w-full h-auto select-none"
